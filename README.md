@@ -94,11 +94,25 @@ the count after weighting. Look at the gap between them. That gap is the
 survey correcting itself, and seeing it once explains weighting better than any
 description.
 
+### Finding a question
+
+There are often two hundred questions in a survey and they have names like
+`ENV2_d_W148`. The search box on the left searches the *questions themselves*
+and their answer options, not those names. Type `solar` and you get every
+question that mentions solar anywhere in its wording. Type `solar local` and
+you get only the ones about both.
+
+Click any result and it opens on whatever screen you are on.
+
 ### Who answers how
 
 **This is usually where to start.** Pick one question, and it splits the
 answers across age, party, education, where people live, and gender, all at
 once, all on the same scale.
+
+The splits it shows are the chips under "Break out by." Click the &times; on
+one to drop it, click a suggestion to add one, or search for anything else in
+the survey to split by instead.
 
 One feature is worth understanding before you read the picture. Each group is
 a dot. Some dots are solid colored and some are hollow grey. **A hollow dot

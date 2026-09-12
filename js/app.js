@@ -306,6 +306,7 @@
       if (e.short || e.question) state.questions[k] = { short: e.short, question: e.question };
       (e.refusals || []).forEach(function (c) { refusals[c] = true; });
     });
+    clearHaystacks();
     Object.keys(refusals).forEach(function (c) {
       if (state.detectedRefusals.indexOf(c) === -1) state.detectedRefusals.push(c);
     });
@@ -361,36 +362,114 @@
 
   // ========================================================= variable list
 
+  /* Everything about a variable that a search should look at: its column
+   * name, the question that was asked, and the text of its answer options.
+   * Searching only the column name is useless on a Pew file, where the thing
+   * you are looking for is called ENV2_d_W148 and the word "solar" appears
+   * only in the question. */
+  function searchHaystack(p) {
+    if (p._haystack !== undefined) return p._haystack;
+    var parts = [p.name, varLabel(p.name), varQuestion(p.name)];
+    var labels = state.labels[p.name];
+    if (labels) Object.keys(labels).forEach(function (k) { parts.push(labels[k]); });
+    p.values.forEach(function (v) { parts.push(String(v.value)); });
+    p._haystack = parts.join(' \u0001 ').toLowerCase();
+    return p._haystack;
+  }
+
+  /* Recomputed whenever labels change, since the question wording is most of
+   * what makes a search work. */
+  function clearHaystacks() {
+    state.profiles.forEach(function (p) { delete p._haystack; });
+  }
+
+  function matchesQuery(p, q) {
+    if (!q) return true;
+    var hay = searchHaystack(p);
+    // every word has to appear somewhere, so "solar local" narrows rather
+    // than widens
+    return q.split(/\s+/).every(function (word) { return hay.indexOf(word) !== -1; });
+  }
+
   function renderVarList() {
     var q = ($('var-search').value || '').trim().toLowerCase();
     var ul = $('var-list');
     ul.innerHTML = '';
+    var shown = 0;
+
     state.profiles.forEach(function (p) {
-      if (q) {
-        var hit = p.name.toLowerCase().indexOf(q) !== -1 ||
-          p.values.some(function (v) { return String(v.value).toLowerCase().indexOf(q) !== -1; });
-        if (!hit) return;
-      }
+      if (!matchesQuery(p, q)) return;
+      shown++;
+      if (shown > 60) return;
+
       var li = document.createElement('li');
-      if (p.name === state.weightVar) li.className = 'is-weight';
+      li.className = (p.name === state.weightVar ? 'is-weight' : '') + ' var-entry';
+      li.setAttribute('data-var', p.name);
+
+      var main = document.createElement('div');
+      main.className = 'ventry-main';
+
+      var title = document.createElement('span');
+      title.className = 'vtitle';
+      title.textContent = varLabel(p.name);
+      main.appendChild(title);
+
       var nm = document.createElement('span');
       nm.className = 'vname';
       nm.textContent = p.name;
+      main.appendChild(nm);
+
+      li.appendChild(main);
+
       var kd = document.createElement('span');
       kd.className = 'vkind';
       kd.textContent = p.name === state.weightVar ? 'weight' :
-        (p.kind === 'categorical' ? p.distinct + ' cats' :
-          (p.kind === 'numeric' ? (p.codeLike ? p.distinct + ' codes' : 'numeric') : p.kind));
-      li.appendChild(nm);
+        (p.distinct <= 12 ? p.distinct + ' answers' :
+          (p.kind === 'numeric' ? 'numeric' : p.distinct + ' values'));
       li.appendChild(kd);
+
+      // clicking a result opens it on whichever panel is in view
+      li.addEventListener('click', function () { openVariable(p.name); });
       ul.appendChild(li);
     });
-    if (!ul.children.length) {
+
+    if (!shown) {
       var li2 = document.createElement('li');
-      li2.innerHTML = '<span class="vkind">no match</span>';
+      li2.innerHTML = '<span class="vkind">nothing matches \u201C' +
+        escapeHTML(q) + '\u201D</span>';
       ul.appendChild(li2);
+    } else if (shown > 60) {
+      var li3 = document.createElement('li');
+      li3.innerHTML = '<span class="vkind">' + (shown - 60) +
+        ' more \u2014 keep typing to narrow</span>';
+      ul.appendChild(li3);
     }
   }
+
+  /* A search result is only useful if it takes you somewhere. Clicking one
+   * loads that variable into the panel currently open. */
+  function openVariable(name) {
+    var active = TABS.filter(function (t) {
+      return $('tab-' + t).getAttribute('aria-selected') === 'true';
+    })[0];
+
+    if (active === 'profile' || active === 'load' || active === 'codebook') {
+      if (active !== 'profile') { showTab('profile'); renderProfileSetup(); }
+      $('profile-item').value = name;
+      renderProfileRoles();
+      renderProfileGroups();
+      renderProfile();
+    } else if (active === 'item') {
+      $('item-select').value = name; renderItem();
+    } else if (active === 'cross') {
+      $('cross-col').value = name; renderCross();
+    } else if (active === 'gap') {
+      $('gap-a').value = name; renderGapCategories(); renderGap();
+    } else if (active === 'model') {
+      $('model-outcome').value = name; renderModelOutcomeRoles(); renderModelPredictors();
+    }
+  }
+
   $('var-search').addEventListener('input', renderVarList);
 
   // ============================================================ selectors
@@ -605,6 +684,7 @@
           });
         }
         state.roles = {};
+        clearHaystacks();
         populateSelectors();
         renderVarList();
         renderCodebook();
@@ -855,35 +935,91 @@
       var taken = {};
       ranked.forEach(function (p) {
         var r = breakdownRank(p.name);
-        // one variable per concept: F_EDUCCAT and F_EDUCCAT2 say the same thing
         var want = r < 999 && !taken[r] && Object.keys(taken).length < 5;
         profileGroups[p.name] = want;
         if (want) taken[r] = true;
       });
     }
 
-    var html = '';
-    cands.forEach(function (p) {
-      var on = profileGroups[p.name];
-      html += '<div class="predictor-row' + (on ? ' is-on' : '') +
-        '" data-gr="' + escapeHTML(p.name) + '">' +
-        '<input type="checkbox" data-gvar="' + escapeHTML(p.name) + '"' + (on ? ' checked' : '') +
-        ' aria-label="break out by ' + escapeHTML(varLabel(p.name)) + '">' +
-        '<span class="pname">' + escapeHTML(varLabel(p.name)) + '</span>' +
-        '<span class="pmeta">' + p.distinct + ' categories</span>' +
-        '<span class="pmeta">' + escapeHTML(p.name) + '</span></div>';
-    });
-
     var grid = $('profile-groups');
-    grid.innerHTML = html || '<p class="empty-state">Nothing in this file has few enough ' +
-      'categories to break out by.</p>';
+    var on = cands.filter(function (p) { return profileGroups[p.name]; });
+    var off = cands.filter(function (p) { return !profileGroups[p.name]; });
 
-    grid.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        var v = this.getAttribute('data-gvar');
-        profileGroups[v] = this.checked;
-        var row = grid.querySelector('[data-gr="' + v.replace(/"/g, '\\"') + '"]');
-        if (row) row.classList.toggle('is-on', this.checked);
+    // a few sensible ones to offer as one-click additions
+    var suggestions = off.filter(function (p) { return breakdownRank(p.name) < 999; })
+      .sort(function (a, b) { return breakdownRank(a.name) - breakdownRank(b.name); })
+      .slice(0, 6);
+
+    var html = '<div class="chip-row" id="chips-on">';
+    if (!on.length) {
+      html += '<span class="chip-empty">nothing selected \u2014 add one below</span>';
+    }
+    on.forEach(function (p) {
+      html += '<button class="chip is-on" data-off="' + escapeHTML(p.name) + '" ' +
+        'title="' + escapeHTML(p.name) + '">' + escapeHTML(varLabel(p.name)) +
+        '<span class="chip-x">\u00d7</span></button>';
+    });
+    html += '</div>';
+
+    if (suggestions.length) {
+      html += '<div class="chip-row chip-row-quiet">' +
+        '<span class="chip-label">add:</span>';
+      suggestions.forEach(function (p) {
+        html += '<button class="chip" data-on="' + escapeHTML(p.name) + '" ' +
+          'title="' + escapeHTML(p.name) + '">+ ' + escapeHTML(varLabel(p.name)) + '</button>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="group-search">' +
+      '<input type="text" id="group-find" class="var-search" autocomplete="off" ' +
+      'placeholder="or search for something else to split by\u2026">' +
+      '<ul class="find-results" id="group-results"></ul></div>';
+
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('[data-off]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        profileGroups[this.getAttribute('data-off')] = false;
+        renderProfileGroups();
+        renderProfile();
+      });
+    });
+    grid.querySelectorAll('[data-on]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        profileGroups[this.getAttribute('data-on')] = true;
+        renderProfileGroups();
+        renderProfile();
+      });
+    });
+    $('group-find').addEventListener('input', function () { renderGroupResults(cands); });
+  }
+
+  function renderGroupResults(cands) {
+    var q = ($('group-find').value || '').trim().toLowerCase();
+    var ul = $('group-results');
+    if (!q) { ul.innerHTML = ''; return; }
+
+    var hits = cands.filter(function (p) {
+      return !profileGroups[p.name] && matchesQuery(p, q);
+    }).slice(0, 8);
+
+    if (!hits.length) {
+      ul.innerHTML = '<li class="find-none">nothing with few enough categories matches</li>';
+      return;
+    }
+
+    ul.innerHTML = hits.map(function (p) {
+      return '<li><button class="find-add" data-add="' + escapeHTML(p.name) + '">' +
+        '<span class="find-title">' + escapeHTML(varLabel(p.name)) + '</span>' +
+        '<span class="find-meta">' + p.distinct + ' categories \u00b7 ' +
+        escapeHTML(p.name) + '</span></button></li>';
+    }).join('');
+
+    ul.querySelectorAll('[data-add]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        profileGroups[this.getAttribute('data-add')] = true;
+        renderProfileGroups();
         renderProfile();
       });
     });

@@ -37,17 +37,17 @@
    * through the greens and opposition through warm earth tones. That pair
    * separates on the blue-yellow axis and stays legible under deuteranopia
    * and protanopia. */
-  --c-support-1: #114F45;
-  --c-support-2: #6FA893;
-  --c-middle: #C0CCC6;
-  --c-oppose-2: #D8A860;
-  --c-oppose-1: #9C5F26;
+  --c-support-1: #08535E;   /* deep teal */
+  --c-support-2: #3FAFB5;   /* bright aqua */
+  --c-middle: #CBD4D0;
+  --c-oppose-2: #F4B434;    /* gold */
+  --c-oppose-1: #CE5A17;    /* burnt orange */
 
-  --c-series-a: #114F45;
-  --c-series-b: #9C5F26;
+  --c-series-a: #0A6B74;
+  --c-series-b: #CE5A17;
   --c-neutral: #B7C6C0;
-  --c-positive: #1D7A5F;
-  --c-negative: #9C5F26;
+  --c-positive: #0E8C8C;
+  --c-negative: #CE5A17;
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -609,3 +609,107 @@ td.term { font-family: var(--font-code); font-size: 12px; }
 
 table.data caption { max-width: 74ch; line-height: 1.45; }
 .role-legend { max-width: 74ch; line-height: 1.5; }
+
+/* ------------------------------------------------- variable search results */
+
+.var-list li.var-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 6px 6px 6px 0;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.var-list li.var-entry:hover {
+  background: var(--teal-wash);
+  border-left-color: var(--teal);
+  padding-left: 6px;
+}
+
+.ventry-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+.vtitle {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.var-list .vname {
+  font-family: var(--font-code);
+  font-size: 10px;
+  color: var(--slate);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------ breakdown chips */
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.chip-row-quiet { margin-bottom: 14px; }
+
+.chip-label { font-size: 11.5px; color: var(--slate); margin-right: 2px; }
+
+.chip-empty { font-size: 12px; color: var(--slate); font-style: italic; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  color: var(--slate);
+  cursor: pointer;
+  max-width: 320px;
+  text-align: left;
+}
+
+.chip:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-wash); }
+
+.chip.is-on {
+  background: var(--c-support-1);
+  border-color: var(--c-support-1);
+  color: #FFFFFF;
+}
+
+.chip.is-on:hover { background: var(--teal-hover); border-color: var(--teal-hover); color: #FFFFFF; }
+
+.chip-x { font-size: 14px; line-height: 1; opacity: 0.7; }
+.chip.is-on:hover .chip-x { opacity: 1; }
+
+.group-search { position: relative; max-width: 420px; }
+
+.find-results { list-style: none; margin: 6px 0 0; padding: 0; }
+
+.find-results li { margin: 0; }
+
+.find-add {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--fill-alt);
+  border: 1px solid var(--grid);
+  border-left: 2px solid var(--rule);
+  color: var(--ink);
+  padding: 6px 10px;
+  margin-bottom: 3px;
+  cursor: pointer;
+}
+
+.find-add:hover { background: var(--teal-wash); border-left-color: var(--teal); }
+
+.find-title { display: block; font-size: 12.5px; }
+.find-meta { display: block; font-size: 10.5px; color: var(--slate); font-family: var(--font-code); }
+
+.find-none { font-size: 12px; color: var(--slate); padding: 6px 0; font-style: italic; }
