@@ -14,6 +14,11 @@ questions.
 
 ---
 
+**Open it here:** <https://hbedle-subsurface.github.io/elsa_stats/>
+
+Nothing to install. The page runs on your own computer and no data you open
+ever leaves it.
+
 ## Why this exists
 
 Suppose you want to know how Americans feel about solar power.
@@ -57,14 +62,19 @@ is worth twenty minutes.
 
 ## Using the tool
 
-Open `index.html` in your browser and drag the `.sav` file onto the page.
+Go to <https://hbedle-subsurface.github.io/elsa_stats/> and drag the `.sav`
+file onto the page. (Or, if you have the files on your own machine, open
+`index.html` in a browser — it works the same either way.)
 
 Everything happens on your own computer. The file is not uploaded anywhere,
 there is no server behind this, and no one can see what you are looking at.
 That also means a survey you have not published yet — your own, or one shared
 with you in confidence — is safe to open here.
 
-There are six tabs, meant to be used roughly in order.
+There are seven tabs, meant to be used roughly in order. Once you pick a
+question on one of them, the others stay on that same question, so you can
+look at it several ways without hunting for it again. Every question menu has
+a filter box above it — type `solar` and only the solar questions remain.
 
 ### Load data
 
@@ -138,8 +148,9 @@ noise. The chart is trying to stop you.
 
 ### Crosstab
 
-One question broken out by one other thing, as a table. Useful when you want
-the exact numbers rather than a picture.
+The same comparison as a table of numbers, for when you want exact figures to
+quote. Each row is a group and adds across to 100%. The screen explains the
+two statistics underneath it.
 
 ### General vs. local
 
@@ -154,7 +165,9 @@ properly.
 
 ### Regression
 
-The one that takes real thought.
+The one that takes real thought, and the one with vocabulary attached. The
+**dependent variable** is what you are trying to explain. The **independent
+variables** are the things that might explain it.
 
 Here is the problem it solves. Say rural people are less supportive of a local
 solar farm than city people. Rural areas also lean Republican, and Republicans

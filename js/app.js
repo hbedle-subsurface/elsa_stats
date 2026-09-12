@@ -508,6 +508,72 @@
     }
   }
 
+  /* Every panel that asks "which question?" gets a filter box above its
+   * dropdown, so a two-hundred-question survey does not have to be scrolled.
+   * The filter searches the same text the sidebar search does. */
+  var PICKERS = ['item-select', 'profile-item', 'cross-col', 'cross-row',
+                 'gap-a', 'gap-b', 'model-outcome'];
+
+  var pickerWired = false;
+
+  function wirePickers() {
+    if (pickerWired) return;
+    pickerWired = true;
+    PICKERS.forEach(function (id) {
+      var box = $(id + '-find');
+      if (!box) return;
+      box.addEventListener('input', function () { applyPickerFilter(id); });
+    });
+  }
+
+  function applyPickerFilter(id) {
+    var sel = $(id), box = $(id + '-find'), count = $(id + '-count');
+    if (!sel || !box) return;
+    var q = (box.value || '').trim().toLowerCase();
+    var shown = 0, total = 0;
+
+    Array.prototype.forEach.call(sel.options, function (opt) {
+      if (!opt.value) { opt.hidden = false; return; }   // keep any blank entry
+      total++;
+      var p = state.profileByName[opt.value];
+      var ok = !q || (p ? matchesQuery(p, q)
+        : opt.textContent.toLowerCase().indexOf(q) !== -1);
+      opt.hidden = !ok;
+      if (ok) shown++;
+    });
+
+    if (count) {
+      count.textContent = q
+        ? shown + ' of ' + total + ' questions match'
+        : total + ' questions';
+    }
+
+    // if the current choice got filtered out, move to the first match
+    if (q && sel.selectedIndex >= 0 && sel.options[sel.selectedIndex].hidden) {
+      for (var i = 0; i < sel.options.length; i++) {
+        if (!sel.options[i].hidden && sel.options[i].value) {
+          sel.selectedIndex = i;
+          sel.dispatchEvent(new Event('change'));
+          break;
+        }
+      }
+    }
+  }
+
+  /* The question someone picked on one screen is the question they still
+   * mean on the next one. */
+  function syncQuestion(name, except) {
+    if (!name) return;
+    state.currentQuestion = name;
+    ['item-select', 'profile-item', 'cross-col', 'gap-a', 'model-outcome'].forEach(function (id) {
+      if (id === except) return;
+      var sel = $(id);
+      if (!sel) return;
+      var has = Array.prototype.some.call(sel.options, function (o) { return o.value === name; });
+      if (has) sel.value = name;
+    });
+  }
+
   function populateSelectors() {
     var numeric = state.profiles.filter(function (p) { return p.allNumeric && p.kind !== 'empty'; });
     fillSelect($('weight-select'), numeric, true, '\u2014 no weight (unweighted) \u2014');
@@ -528,6 +594,10 @@
     var local = vars.find(function (p) { return /(local|community|near|nearby|my ?area)/i.test(p.name); });
     if (general) $('gap-a').value = general.name;
     if (local) $('gap-b').value = local.name;
+
+    wirePickers();
+    PICKERS.forEach(applyPickerFilter);
+    if (state.currentQuestion) syncQuestion(state.currentQuestion);
   }
 
   $('weight-select').addEventListener('change', function () {
@@ -755,7 +825,10 @@
 
   // ============================================================= one item
 
-  $('item-select').addEventListener('change', renderItem);
+  $('item-select').addEventListener('change', function () {
+    syncQuestion(this.value, 'item-select');
+    renderItem();
+  });
 
   function renderItem() {
     var name = $('item-select').value;
@@ -836,6 +909,7 @@
   var profileGroups = {};   // variable name -> included?
 
   $('profile-item').addEventListener('change', function () {
+    syncQuestion(this.value, 'profile-item');
     renderProfileRoles();
     renderProfileGroups();
     renderProfile();
@@ -843,6 +917,12 @@
 
   function renderProfileSetup() {
     if (!state.rows.length) return;
+    if (state.currentQuestion) {
+      var sel = $('profile-item');
+      if (Array.prototype.some.call(sel.options, function (o) { return o.value === state.currentQuestion; })) {
+        sel.value = state.currentQuestion;
+      }
+    }
     renderProfileRoles();
     renderProfileGroups();
     renderProfile();
@@ -1142,7 +1222,10 @@
 
 
   $('cross-row').addEventListener('change', renderCross);
-  $('cross-col').addEventListener('change', renderCross);
+  $('cross-col').addEventListener('change', function () {
+    syncQuestion(this.value, 'cross-col');
+    renderCross();
+  });
 
   function renderCross() {
     var rv = $('cross-row').value, cv = $('cross-col').value;
@@ -1588,6 +1671,7 @@
   }
 
   $('model-outcome').addEventListener('change', function () {
+    syncQuestion(this.value, 'model-outcome');
     renderModelOutcomeRoles();
     $('model-body').innerHTML = '';
   });
@@ -1598,6 +1682,12 @@
 
   function renderModelSetup() {
     if (!state.rows.length) return;
+    if (state.currentQuestion) {
+      var msel = $('model-outcome');
+      if (Array.prototype.some.call(msel.options, function (o) { return o.value === state.currentQuestion; })) {
+        msel.value = state.currentQuestion;
+      }
+    }
     renderModelOutcomeRoles();
     renderModelPredictors();
   }
@@ -1642,47 +1732,120 @@
       return p.name !== outcome && p.distinct <= 30;
     });
 
-    var html = '';
     candidates.forEach(function (p) {
-      var st = modelPredictors[p.name] || { on: false, reference: p.values[0].value };
-      modelPredictors[p.name] = st;
-      // a numeric column with many distinct values enters as a number;
-      // otherwise it is treated as a set of categories
-      var asNumeric = p.allNumeric && p.distinct > 8;
-
-      html += '<div class="predictor-row' + (st.on ? ' is-on' : '') + '" data-row="' + escapeHTML(p.name) + '">' +
-        '<input type="checkbox" data-pvar="' + escapeHTML(p.name) + '"' + (st.on ? ' checked' : '') +
-        ' aria-label="include ' + escapeHTML(p.name) + '">' +
-        '<span class="pname">' + escapeHTML(p.name) + '</span>' +
-        '<span class="pmeta">' + (asNumeric ? 'numeric' : p.distinct + ' categories') + '</span>';
-
-      if (asNumeric) {
-        html += '<span class="pmeta">per unit</span>';
-      } else {
-        html += '<select data-refvar="' + escapeHTML(p.name) + '" aria-label="reference category">';
-        p.values.forEach(function (v) {
-          html += '<option value="' + escapeHTML(v.value) + '"' +
-            (String(v.value) === String(st.reference) ? ' selected' : '') + '>ref: ' +
-            escapeHTML(showValue(p.name, v.value)) + '</option>';
-        });
-        html += '</select>';
+      if (!modelPredictors[p.name]) {
+        modelPredictors[p.name] = { on: false, reference: p.values[0].value };
       }
-      html += '</div>';
     });
 
-    grid.innerHTML = html || '<p class="empty-state">No usable predictors in this file.</p>';
+    var unset = candidates.filter(function (p) { return modelPredictors[p.name].seeded === undefined; });
+    if (unset.length) {
+      var ranked = unset.slice().sort(function (a, b) {
+        return breakdownRank(a.name) - breakdownRank(b.name);
+      });
+      var taken = {};
+      ranked.forEach(function (p) {
+        var r = breakdownRank(p.name);
+        var want = r < 999 && !taken[r] && Object.keys(taken).length < 3;
+        modelPredictors[p.name].on = want;
+        modelPredictors[p.name].seeded = true;
+        if (want) taken[r] = true;
+      });
+    }
 
-    grid.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
-      cb.addEventListener('change', function () {
-        var v = this.getAttribute('data-pvar');
-        modelPredictors[v].on = this.checked;
-        var row = grid.querySelector('[data-row="' + v.replace(/"/g, '\\"') + '"]');
-        if (row) row.classList.toggle('is-on', this.checked);
+    var on = candidates.filter(function (p) { return modelPredictors[p.name].on; });
+    var off = candidates.filter(function (p) { return !modelPredictors[p.name].on; });
+    var suggestions = off.filter(function (p) { return breakdownRank(p.name) < 999; })
+      .sort(function (a, b) { return breakdownRank(a.name) - breakdownRank(b.name); })
+      .slice(0, 6);
+
+    var html = '<div class="chip-row">';
+    if (!on.length) html += '<span class="chip-empty">none chosen yet \u2014 add one below</span>';
+    on.forEach(function (p) {
+      html += '<button class="chip is-on" data-poff="' + escapeHTML(p.name) + '" title="' +
+        escapeHTML(p.name) + '">' + escapeHTML(varLabel(p.name)) +
+        '<span class="chip-x">\u00d7</span></button>';
+    });
+    html += '</div>';
+
+    if (suggestions.length) {
+      html += '<div class="chip-row chip-row-quiet"><span class="chip-label">add:</span>';
+      suggestions.forEach(function (p) {
+        html += '<button class="chip" data-pon="' + escapeHTML(p.name) + '" title="' +
+          escapeHTML(p.name) + '">+ ' + escapeHTML(varLabel(p.name)) + '</button>';
+      });
+      html += '</div>';
+    }
+
+    html += '<div class="group-search">' +
+      '<input type="text" id="pred-find" class="var-search" autocomplete="off" ' +
+      'placeholder="or search for something else to hold constant\u2026">' +
+      '<ul class="find-results" id="pred-results"></ul></div>';
+
+    // reference pickers only for what is actually in the model
+    if (on.length) {
+      html += '<table class="data" style="margin-top:16px"><caption>Each result will read ' +
+        '\u201Ccompared with\u201D the reference category. Change it if another one makes a ' +
+        'more natural baseline.</caption><thead><tr><th>independent variable</th>' +
+        '<th style="text-align:left">compared against</th><th class="moe">categories</th>' +
+        '</tr></thead><tbody>';
+      on.forEach(function (p) {
+        var asNumeric = p.allNumeric && p.distinct > 8;
+        html += '<tr><td>' + escapeHTML(varLabel(p.name)) + '</td><td style="text-align:left">';
+        if (asNumeric) {
+          html += '<span class="moe">treated as a number, per one unit</span>';
+        } else {
+          html += '<select data-refvar="' + escapeHTML(p.name) + '">';
+          p.values.forEach(function (v) {
+            html += '<option value="' + escapeHTML(v.value) + '"' +
+              (String(v.value) === String(modelPredictors[p.name].reference) ? ' selected' : '') +
+              '>' + escapeHTML(showValue(p.name, v.value)) + '</option>';
+          });
+          html += '</select>';
+        }
+        html += '</td><td class="moe">' + p.distinct + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('[data-poff]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        modelPredictors[this.getAttribute('data-poff')].on = false;
+        renderModelPredictors();
+      });
+    });
+    grid.querySelectorAll('[data-pon]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        modelPredictors[this.getAttribute('data-pon')].on = true;
+        renderModelPredictors();
       });
     });
     grid.querySelectorAll('select[data-refvar]').forEach(function (sel) {
       sel.addEventListener('change', function () {
         modelPredictors[this.getAttribute('data-refvar')].reference = this.value;
+      });
+    });
+    $('pred-find').addEventListener('input', function () {
+      var q = (this.value || '').trim().toLowerCase();
+      var ul = $('pred-results');
+      if (!q) { ul.innerHTML = ''; return; }
+      var hits = candidates.filter(function (p) {
+        return !modelPredictors[p.name].on && matchesQuery(p, q);
+      }).slice(0, 8);
+      if (!hits.length) { ul.innerHTML = '<li class="find-none">nothing matches</li>'; return; }
+      ul.innerHTML = hits.map(function (p) {
+        return '<li><button class="find-add" data-padd="' + escapeHTML(p.name) + '">' +
+          '<span class="find-title">' + escapeHTML(varLabel(p.name)) + '</span>' +
+          '<span class="find-meta">' + p.distinct + ' categories \u00b7 ' +
+          escapeHTML(p.name) + '</span></button></li>';
+      }).join('');
+      ul.querySelectorAll('[data-padd]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          modelPredictors[this.getAttribute('data-padd')].on = true;
+          renderModelPredictors();
+        });
       });
     });
   }
@@ -1752,7 +1915,7 @@
       '. Standard errors are design-based and account for the weights but not for ' +
       'clustering. Reference categories carry no estimate: every other category in ' +
       'that variable is measured against them.</caption><thead><tr>' +
-      '<th>term</th><th>' + (isLinear ? 'estimate' : 'log odds') + '</th>' +
+      '<th>compared with the reference</th><th>' + (isLinear ? 'difference' : 'log odds') + '</th>' +
       (isLinear ? '' : '<th>odds ratio</th>') +
       '<th class="moe">std. error</th><th class="moe">95% interval</th><th class="moe">p</th>' +
       (isLinear ? '' : '<th>effect, pts</th>') +
@@ -1939,6 +2102,20 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
     });
   }
+
+  (function () {
+    var btn = $('rail-wide'), shell = $('shell');
+    if (!btn || !shell) return;
+    btn.addEventListener('click', function () {
+      if (shell.classList.contains('rail-wide')) {
+        shell.classList.remove('rail-wide');
+        btn.textContent = 'wider';
+      } else {
+        shell.classList.add('rail-wide');
+        btn.textContent = 'narrower';
+      }
+    });
+  })();
 
   updateReadout();
 })();

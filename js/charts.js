@@ -20,6 +20,11 @@
     return n;
   }
 
+  /* The viewBox units are CSS pixels at the size the chart was designed for.
+   * Letting the SVG stretch to a wide panel scaled every label up with it,
+   * which is why the chart text came out much larger than the text around it
+   * and why a tall chart ran off the screen. Capping the width at the design
+   * size keeps a 12px label 12px. */
   function svgRoot(w, h) {
     var s = el('svg', {
       viewBox: '0 0 ' + w + ' ' + h,
@@ -28,6 +33,7 @@
       'font-family': 'var(--font-ui)',
       role: 'img'
     });
+    s.setAttribute('style', 'max-width:' + w + 'px; height:auto;');
     return s;
   }
 
@@ -655,9 +661,9 @@
     var P = palette();
 
     var labelW = opts.labelWidth || 168;
-    var rowH = 24, panelGap = 16, titleH = 20;
-    var padTop = 30, padBottom = 46, padRight = 118;
-    var W = 780, plotX0 = labelW, plotX1 = W - padRight;
+    var rowH = 21, panelGap = 13, titleH = 18;
+    var padTop = 28, padBottom = 42, padRight = 112;
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
 
     var H = padTop;
     panels.forEach(function (pn) { H += titleH + pn.rows.length * rowH + panelGap; });
@@ -720,7 +726,7 @@
         }
 
         var dot = el('circle', {
-          cx: X(r.p), cy: cy, r: distinct ? 6.5 : 5,
+          cx: X(r.p), cy: cy, r: distinct ? 6 : 4.5,
           fill: distinct ? color : 'var(--panel)',
           stroke: color, 'stroke-width': distinct ? 1 : 1.5,
           opacity: distinct ? 1 : 0.8

@@ -19,12 +19,15 @@
   </div>
 </header>
 
-<div class="shell">
+<div class="shell" id="shell">
 
   <!-- ==================================================== instrument rail -->
   <aside class="rail">
     <section>
-      <h2>Data state</h2>
+      <div class="rail-head">
+        <h2>Data state</h2>
+        <button class="rail-toggle" id="rail-wide" title="Widen or narrow this column">wider</button>
+      </div>
       <div class="readout is-empty" id="readout">
         <div class="readout-file" id="readout-file">no file loaded</div>
         <dl>
@@ -141,7 +144,7 @@
       <div class="controls">
         <div class="field">
           <label for="item-select">Question</label>
-          <select id="item-select"></select>
+          <div class="picker"><input type="text" class="picker-search" id="item-select-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="item-select" size="1"></select><div class="picker-count" id="item-select-count"></div></div>
         </div>
       </div>
 
@@ -161,7 +164,7 @@
       <div class="controls">
         <div class="field">
           <label for="profile-item">Question</label>
-          <select id="profile-item"></select>
+          <div class="picker"><input type="text" class="picker-search" id="profile-item-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="profile-item" size="1"></select><div class="picker-count" id="profile-item-count"></div></div>
         </div>
       </div>
 
@@ -183,19 +186,32 @@
     <section class="panel" role="tabpanel" id="panel-cross" aria-labelledby="tab-cross" hidden>
       <h2>Crosstab</h2>
       <p class="lede">
-        One question broken out by a grouping variable, as weighted row
-        percentages. The test below the table asks whether the differences
-        between groups are larger than sampling error would produce.
+        The same idea as the previous screen, but as a table of numbers rather
+        than a picture. Use it when you want the exact figures to quote.
       </p>
+
+      <div class="read-this">
+        <b>How a crosstab works.</b> Pick a group on the left and a question on
+        the right. Each row of the table is one group of people, and the
+        numbers along that row show how that group answered, adding to 100%.
+        Reading <i>across</i> a row tells you what one group thinks. Reading
+        <i>down</i> a column compares the groups on one answer.<br><br>
+        Underneath, two numbers judge the table. <b>p</b> is the chance of
+        seeing differences this big if the groups really answered alike — below
+        0.05 is the usual line for taking a difference seriously. <b>Cramer's
+        V</b> says how big the difference is, from 0 (none) to 1 (total). With
+        a survey of several thousand people almost any table clears the p test,
+        so V is normally the more useful of the two.
+      </div>
 
       <div class="controls">
         <div class="field">
           <label for="cross-row">Group (rows)</label>
-          <select id="cross-row"></select>
+          <div class="picker"><input type="text" class="picker-search" id="cross-row-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="cross-row" size="1"></select><div class="picker-count" id="cross-row-count"></div></div>
         </div>
         <div class="field">
           <label for="cross-col">Question (columns)</label>
-          <select id="cross-col"></select>
+          <div class="picker"><input type="text" class="picker-search" id="cross-col-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="cross-col" size="1"></select><div class="picker-count" id="cross-col-count"></div></div>
         </div>
       </div>
 
@@ -218,16 +234,44 @@
       <div class="controls">
         <div class="field">
           <label for="gap-a">Question A &mdash; support in general</label>
-          <select id="gap-a"></select>
+          <div class="picker"><input type="text" class="picker-search" id="gap-a-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="gap-a" size="1"></select><div class="picker-count" id="gap-a-count"></div></div>
         </div>
         <div class="field">
           <label for="gap-b">Question B &mdash; support locally</label>
-          <select id="gap-b"></select>
+          <div class="picker"><input type="text" class="picker-search" id="gap-b-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="gap-b" size="1"></select><div class="picker-count" id="gap-b-count"></div></div>
         </div>
         <div class="field">
           <label for="gap-group">Break out by</label>
           <select id="gap-group"></select>
         </div>
+      </div>
+
+      <div class="read-this">
+        <b>Using this with the Pew energy survey (Wave 148).</b> That wave asks
+        everyone whether they favor <i>more solar panel farms in our country</i>
+        — the variable called <code>ENV2_d</code>. It does not ask whether they
+        would favor one where they live. What it asks instead, of half the
+        sample, is what they think a local solar farm <i>would do</i>:<br><br>
+        <code>COMMSOLR_a</code> make the landscape unattractive &middot;
+        <code>COMMSOLR_b</code> take up too much space &middot;
+        <code>COMMSOLR_c</code> bring in tax revenue &middot;
+        <code>COMMSOLR_d</code> lower your electricity bill &middot;
+        <code>GRNECON1</code> help or hurt the local economy<br><br>
+        So a fair comparison is <code>ENV2_d</code> against one of those. Set
+        question A to <code>ENV2_d</code> with <i>Favor</i> as the supporting
+        answer, and question B to <code>COMMSOLR_a</code> with the two
+        <i>No, it would not</i> answers as supporting, since not expecting harm
+        is the pro-solar side of that item.<br><br>
+        <b>Say carefully what you found.</b> This measures people who favor
+        solar nationally but expect a local downside. That is not the same as
+        people who would oppose a local farm — someone can expect a farm to be
+        ugly and still want it built. Wave 148 cannot tell those two people
+        apart, so write it as expected local drawbacks, not as opposition.<br><br>
+        Two practical notes. The local items were asked of only half the
+        sample, so the comparison runs on about 4,300 people rather than 8,638
+        and the margins of error roughly double. And the solar and wind local
+        items went to <i>different</i> halves, so no one answered both: they
+        cannot be compared within the same people.
       </div>
 
       <div id="gap-categories"></div>
@@ -241,16 +285,26 @@
         A crosstab shows one difference at a time. Rural residents are less
         supportive of a local project, and rural areas also lean Republican, so
         a rural difference in a crosstab may be a partisan difference wearing
-        rural clothing. A regression estimates each predictor's contribution
+        rural clothing. A regression estimates what each thing contributes
         while the others are held constant, which is what separates the two.
       </p>
 
+      <div class="read-this">
+        <b>The two words you need.</b> The <b>dependent variable</b> is the
+        thing you are trying to explain — the answer you think depends on
+        something else. The <b>independent variables</b> are the things you
+        think might explain it: age, party, education, where someone lives.<br><br>
+        The model reports what each independent variable contributes with the
+        others held still, so "rural" no longer includes the part that was
+        really about party.
+      </div>
+
       <div class="card">
-        <h3>Outcome</h3>
+        <h3>Dependent variable &mdash; what you are explaining</h3>
         <div class="controls">
           <div class="field">
             <label for="model-outcome">Question to explain</label>
-            <select id="model-outcome"></select>
+            <div class="picker"><input type="text" class="picker-search" id="model-outcome-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="model-outcome" size="1"></select><div class="picker-count" id="model-outcome-count"></div></div>
           </div>
           <fieldset class="radios">
             <legend>Model</legend>
@@ -262,13 +316,14 @@
       </div>
 
       <div class="card">
-        <h3>Predictors</h3>
+        <h3>Independent variables &mdash; what might explain it</h3>
         <p class="role-legend">
-          Check each variable to include. A categorical predictor is entered as
-          one indicator per category except the reference, and its coefficients
-          are differences from that reference. Cases missing on any included
-          predictor are dropped from the model entirely, so adding a predictor
-          with many refusals shrinks the sample.
+          These are the things held against each other. Remove one with its
+          &times;, add a suggestion, or search for anything else. Each one is
+          measured against a <i>reference</i> category, so a result reads as
+          "compared with 18&ndash;29 year olds". Anyone missing an answer on
+          any of these drops out of the model, so adding more shrinks the
+          sample.
         </p>
         <div class="predictor-grid" id="model-predictors"></div>
         <button id="model-fit">Fit model</button>
