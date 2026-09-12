@@ -70,25 +70,34 @@
       </p>
 
       <div class="dropzone" id="dropzone">
-        <p>Drag a <code>.csv</code> or <code>.tsv</code> file here</p>
-        <input type="file" id="file-input" accept=".csv,.tsv,.txt,.tab" hidden>
+        <p>Drag an SPSS <code>.sav</code> file here, or a <code>.csv</code></p>
+        <input type="file" id="file-input" accept=".sav,.csv,.tsv,.txt,.tab" hidden>
         <button id="browse-btn">Choose a file</button>
         <p style="margin-top:16px;font-size:12.5px">
-          or <button class="link" id="demo-btn">open the synthetic practice file</button>
-          to try the tool before downloading real data
+          or <button class="link" id="demo-btn">open the practice file</button>
+          to try everything out before you have real data
+        </p>
+        <p style="margin-top:14px;font-size:12px;color:var(--slate);max-width:60ch;margin-left:auto;margin-right:auto">
+          A <code>.sav</code> is best. It carries the question wording and the
+          answer labels, so the tool can show you what each question asked
+          instead of a column name like <code>ENV2_d_W148</code>.
         </p>
       </div>
 
       <div id="load-message"></div>
 
       <div class="card" style="margin-top:18px">
-        <h3>Getting survey data out of SPSS format</h3>
-        <p style="margin-top:0;color:var(--slate);max-width:66ch">
-          Pew releases its datasets as SPSS <code>.sav</code> files, which a
-          browser cannot read. Converting one to CSV takes a few lines of
-          Python. <code>docs/CONVERTING-SAV.md</code> in this repository has the
-          script, including how to keep the value labels rather than the numeric
-          codes.
+        <h3>About the file you downloaded</h3>
+        <p style="margin-top:0;color:var(--slate);max-width:68ch">
+          Pew gives you several files. The one to use here is the
+          <code>.sav</code>. Drop it straight in &mdash; it is read on your own
+          computer, and it brings the question wording and answer labels with
+          it.
+        </p>
+        <p style="color:var(--slate);max-width:68ch">
+          The <code>.csv</code> works too, but it stores answers as bare numbers
+          with nothing to say what they mean, so you would have to look every
+          code up in the questionnaire yourself.
         </p>
       </div>
     </section>
@@ -283,6 +292,7 @@
 
 <script src="js/stats.js"></script>
 <script src="js/csv.js"></script>
+<script src="js/sav.js"></script>
 <script src="js/regression.js"></script>
 <script src="js/charts.js"></script>
 <script src="js/app.js"></script>

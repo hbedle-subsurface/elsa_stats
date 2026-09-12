@@ -193,34 +193,8 @@
       return;
     }
 
-    state.filename = filename;
-    state.columns = parsed.columns;
-    state.rows = parsed.rows;
-    state.profiles = CSV.profile(parsed.rows, parsed.columns);
-    state.profileByName = {};
-    state.profiles.forEach(function (p) { state.profileByName[p.name] = p; });
-    state.roles = {};
-    state.weightVar = CSV.guessWeight(parsed.rows, state.profiles);
+    adoptData(parsed.columns, parsed.rows, filename);
 
-    // Refusal codes are detected but NOT excluded by default.
-    //
-    // Pew computes its published percentages with refusals left in the
-    // denominator. Checked against Wave 148: keeping them in reproduces the
-    // published 78% for solar, 72% for wind and 56% for nuclear exactly,
-    // while dropping them overstates each by one and a half to two points.
-    // Matching the published figures is the right default for a student
-    // whose work will be read against the report it came from.
-    var detected = {};
-    state.profiles.forEach(function (p) {
-      if (p.name === state.weightVar) return;
-      p.values.forEach(function (v) {
-        if (CSV.scaleScore(v.value) === 100) detected[v.value] = true;
-      });
-    });
-    state.detectedRefusals = Object.keys(detected);
-    state.missingCodes = [];
-    state.excludeRefusals = false;
-    $('missing-codes').value = '';
 
     var delimName = { ',': 'comma', '\t': 'tab', ';': 'semicolon', '|': 'pipe' }[parsed.delimiter] || parsed.delimiter;
     var msg = 'Read ' + fmt(parsed.rows.length) + ' cases and ' +
@@ -249,6 +223,44 @@
     renderCodebook();
   }
 
+  /* Everything both readers have to do once the rows exist. */
+  function adoptData(columns, rows, filename) {
+    state.filename = filename;
+    state.columns = columns;
+    state.rows = rows;
+    state.profiles = CSV.profile(rows, columns);
+    state.profileByName = {};
+    state.profiles.forEach(function (p) { state.profileByName[p.name] = p; });
+    state.labels = {};
+    state.questions = {};
+    state.roles = {};
+    state.missingCodes = [];
+    state.excludeRefusals = false;
+    state.weightVar = CSV.guessWeight(rows, state.profiles);
+    profileGroups = {};
+    modelPredictors = {};
+    $('missing-codes').value = '';
+
+    var detected = {};
+    state.profiles.forEach(function (p) {
+      if (p.name === state.weightVar) return;
+      p.values.forEach(function (v) {
+        if (CSV.scaleScore(v.value) === 100) detected[v.value] = true;
+      });
+    });
+    state.detectedRefusals = Object.keys(detected);
+  }
+
+  function finishLoad() {
+    enableAnalysisTabs(true);
+    $('rail-vars').hidden = false;
+    populateSelectors();
+    renderVarList();
+    updateReadout();
+    showTab('codebook');
+    renderCodebook();
+  }
+
   function message(kind, text) {
     var cls = kind === 'error' ? 'notice error' : (kind === 'warn' ? 'notice' : 'notice quiet');
     $('load-message').innerHTML = '<div class="' + cls + '"><p>' + text + '</p></div>';
@@ -256,9 +268,66 @@
 
   function readFile(file) {
     var reader = new FileReader();
-    reader.onload = function () { loadText(String(reader.result), file.name); };
     reader.onerror = function () { message('error', 'The browser could not read that file.'); };
+
+    if (/\.(sav|zsav)$/i.test(file.name)) {
+      message('quiet', 'Reading ' + escapeHTML(file.name) + '\u2026 a survey file this size ' +
+        'takes a few seconds.');
+      reader.onload = function () {
+        try {
+          loadSav(reader.result, file.name);
+        } catch (err) {
+          message('error', escapeHTML(err.message || 'That SPSS file could not be read.'));
+        }
+      };
+      reader.readAsArrayBuffer(file);
+      return;
+    }
+
+    reader.onload = function () { loadText(String(reader.result), file.name); };
     reader.readAsText(file);
+  }
+
+  /* An SPSS file arrives with its dictionary attached, so the labelling step
+   * that a CSV needs is already done by the time the data is on screen. */
+  function loadSav(buffer, filename) {
+    var parsed = SAV.parse(buffer);
+    if (!parsed.rows.length) {
+      message('error', 'That file was read but holds no cases.');
+      return;
+    }
+
+    adoptData(parsed.columns, parsed.rows, filename);
+
+    var refusals = {};
+    Object.keys(parsed.dictionary).forEach(function (k) {
+      var e = parsed.dictionary[k];
+      if (e.labels) state.labels[k] = e.labels;
+      if (e.short || e.question) state.questions[k] = { short: e.short, question: e.question };
+      (e.refusals || []).forEach(function (c) { refusals[c] = true; });
+    });
+    Object.keys(refusals).forEach(function (c) {
+      if (state.detectedRefusals.indexOf(c) === -1) state.detectedRefusals.push(c);
+    });
+
+    var labelled = Object.keys(parsed.dictionary).filter(function (k) {
+      return parsed.dictionary[k].labels;
+    }).length;
+
+    var msg = 'Read ' + fmt(parsed.rows.length) + ' people and ' +
+      fmt(parsed.columns.length) + ' questions from ' + escapeHTML(filename) + '. ' +
+      fmt(labelled) + ' of the questions came with their answer labels, so the tool ' +
+      'already knows what each answer means.';
+    if (state.weightVar) {
+      msg += ' The survey weight was found and set: ' + state.weightVar + '.';
+      message('quiet', msg);
+    } else {
+      msg += ' No survey weight was found. Set one in the Codebook tab before ' +
+        'reporting any percentage.';
+      message('warn', msg);
+    }
+
+    finishLoad();
   }
 
   var dz = $('dropzone');

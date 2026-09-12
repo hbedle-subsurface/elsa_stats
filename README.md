@@ -1,146 +1,215 @@
 # Survey Workbench
 
-A browser tool for weighted analysis of public opinion survey data, built for
-undergraduate research on attitudes toward solar power and other energy
-technologies.
+A tool for looking at what people actually say when you ask them.
 
-The tool reads a delimited data file, shows what is in it, and produces
-weighted percentages, crosstabs, and a paired comparison between support for a
-technology in general and support for it locally.
+Public opinion surveys are one of the main ways we know anything about what a
+country thinks. Someone asks thousands of people the same question, and the
+answers, added up carefully, tell you something you could not have learned by
+asking your friends. This tool lets you open one of those surveys and look
+at it yourself, instead of reading someone else's summary of it.
 
-**Everything runs in the browser.** There is no server, no upload step, and no
-analytics. A survey file dropped into the page is read by JavaScript running on
-the machine in front of you and does not leave it. This holds for unpublished or
-confidential survey data as well as for public datasets.
+You do not need to know how to code. You do not need to install anything. You
+open a page in your browser, drag a survey file onto it, and start asking
+questions.
 
-## Running it
+---
 
-Open `index.html` in a browser. That is the whole installation.
+## Why this exists
 
-Two things need a local web server rather than a `file://` URL: the "open the
-synthetic practice file" button, and any other file the page fetches for itself.
-Dragging a file onto the drop area works either way. To serve the folder:
+Suppose you want to know how Americans feel about solar power.
 
-```
-cd survey-workbench
-python3 -m http.server 8000
-```
+You could read a news article about it. The article will tell you a number,
+maybe that 78% of people favor building more solar farms. That is useful, but
+it is one number, and someone else chose it. It cannot tell you whether young
+people and older people disagree, whether that has changed, or whether people
+who say they support solar in general also want one built near them.
 
-then open `http://localhost:8000`.
+The organizations that run these surveys — Pew Research Center is the best
+known — publish their raw data for free. Every person's answers, every
+question, for anyone to examine. Almost nobody outside of professional
+researchers ever opens these files, because the software for reading them is
+expensive and the files themselves look forbidding.
 
-## The five panels
+They are not actually that forbidding. That is what this tool is for.
 
-**Load data** takes a `.csv`, `.tsv`, or other delimited file. The delimiter is
-detected automatically. Quoted fields, commas inside quotes, and both line-ending
-conventions are handled.
+---
 
-**Codebook** lists every variable with its response categories, how many people
-gave each answer, and how many are missing. The survey weight is set here. Codes
-that stand for refusals or non-answers are detected on load and listed in the
-"treat as missing" field, where they can be changed.
+## Getting a survey
 
-**One item** shows a single question weighted and unweighted side by side, with
-the shift between them. For an ordered scale it also reports the combined
-supporting categories — the number that normally gets quoted — with a confidence
-interval computed by collapsing the categories at the respondent level.
+Go to `pewresearch.org`, find a report on a topic you care about, and look for
+the link to download the dataset. You will need to make a free account.
 
-**Who answers how** takes one question and breaks it out across every
-background variable at once, on a single shared scale with the whole-sample
-figure marked. A group whose interval overlaps that line is drawn hollow,
-because the survey cannot tell it apart from the average; the filled dots are
-the differences worth writing about. This is usually the right first look at a
-new question.
+You will get a folder with several files in it:
 
-**Crosstab** breaks a question out by a grouping variable as weighted row
-percentages, with a design-adjusted chi-square test and Cramér's V.
+| file | what it is |
+|---|---|
+| something**.sav** | **the data.** Every person's answers. This is the one you want |
+| something**.csv** | the same data, but stripped of the labels — usable, but harder |
+| **Questionnaire**.pdf | exactly what each person was asked, word for word |
+| **Codebook**.xlsx | a list of every question and its possible answers |
+| **Methodology**.pdf | who was surveyed and how |
 
-**General vs. local** is the paired comparison. Two questions answered by the
-same people, each collapsed into support or not support, with the resulting 2×2
-table, the difference between the two percentages, McNemar's test, and the same
-comparison run separately within any third variable.
+Open the questionnaire first and read it. It is the survey itself, and you
+cannot interpret an answer without knowing the question that produced it. It
+is worth twenty minutes.
 
-**Regression** fits a survey-weighted model of a yes/no outcome, either a
-linear probability model or a logistic one, with design-based standard errors.
-This is the panel that separates confounded differences: rural residents are
-less supportive of a local project and rural areas also lean Republican, and
-only a model with both predictors in it can say how much of the rural
-difference is rural. Output includes a coefficient plot and adjusted
-predictions, neither of which Pew publishes.
+---
 
-## Where to get data
+## Using the tool
 
-### Pew Research Center
+Open `index.html` in your browser and drag the `.sav` file onto the page.
 
-Run `tools/make_dictionary.py` on the downloaded `.sav` first. It writes the CSV
-and a dictionary of question wording and answer labels, so the tool can name
-variables by what was asked instead of by column name. See
-`docs/PEW-ATP-NOTES.md`.
+Everything happens on your own computer. The file is not uploaded anywhere,
+there is no server behind this, and no one can see what you are looking at.
+That also means a survey you have not published yet — your own, or one shared
+with you in confidence — is safe to open here.
 
-Free, but requires a Pew account and agreement to their terms and conditions.
-Datasets are SPSS `.sav` files, which a browser cannot read directly; see
-`docs/CONVERTING-SAV.md` for the conversion.
+There are six tabs, meant to be used roughly in order.
 
-The waves most relevant to energy attitudes:
+### Load data
 
-- **May 13–19, 2024** (8,638 adults). Asks about expanding solar and wind
-  nationally *and* about wind and solar development at the local level, in the
-  same respondents. This is the wave to use for a general-versus-local
-  comparison, because the paired structure is what makes the comparison
-  possible.
-- **April 28 – May 4, 2025** (Wave 169, climate and energy).
-- **March 2026** (3,524 adults). The most recent energy wave.
+Drag the file in. A survey of eight thousand people takes a few seconds to
+read.
 
-The same item wording — whether the respondent favors more solar panel farms —
-has been carried since 2016, so the waves stack into a trend.
+### Codebook
 
-Public Pew files identify geography only down to Census region and division.
-There is no state variable. "West South Central" covers Oklahoma, Texas,
-Arkansas, and Louisiana.
+A list of every question in the survey, how many people answered it, and what
+the possible answers were.
 
-Pew's terms restrict redistribution, so a Pew microdata file should not be
-committed into a public repository.
+Two things live here that matter more than they sound like they do.
 
-`docs/PEW-ATP-NOTES.md` records what Wave 148 turned out to look like in
-practice: numeric codes rather than answer text, refusals kept in the
-percentage base, form splits that halve the sample, and which local solar items
-the wave actually contains.
+**The survey weight.** Find it, and check that it is set. There is more about
+why below.
 
-### Cooperative Election Study
+**Refusals.** Some people decline to answer. The tool counts them in the total
+by default, because that is how Pew calculates the numbers it publishes, so
+your figures will match theirs.
 
-`https://cces.gov.harvard.edu` — distributed on the Harvard Dataverse as CSV,
-free with a Dataverse account. Around 60,000 respondents per year, and it
-carries state identifiers, which makes state-level subgroups possible in a way
-that Pew's public files do not. Oklahoma alone runs several hundred respondents.
+### One item
 
-### General Social Survey
+Pick a question and see how everyone answered it.
 
-`https://gss.norc.org` — free, no registration, and the longest-running
-environmental attitude series in the United States, though thin on solar
-specifically.
+This screen shows two columns of percentages side by side: the raw count, and
+the count after weighting. Look at the gap between them. That gap is the
+survey correcting itself, and seeing it once explains weighting better than any
+description.
 
-## Method notes
+### Who answers how
 
-Variance estimation uses Kish's effective sample size, which treats unequal
-weights as the only departure from simple random sampling. It does not account
-for clustering or stratification. `docs/METHODS.md` sets out every formula the
-tool uses and where each one is approximate.
+**This is usually where to start.** Pick one question, and it splits the
+answers across age, party, education, where people live, and gender, all at
+once, all on the same scale.
 
-## Colors
+One feature is worth understanding before you read the picture. Each group is
+a dot. Some dots are solid colored and some are hollow grey. **A hollow dot
+means the survey cannot actually tell that group apart from the average.**
+Surveys are estimates, not censuses, and a three-point difference between two
+groups of four hundred people each might be nothing but the luck of who
+happened to pick up the phone. The tool works out which differences are big
+enough to trust and draws only those in color.
 
-The palette lives entirely in `css/style.css`, including the chart colors, which
-`js/charts.js` reads as CSS custom properties. Changing `--c-support-1` and its
-neighbors restyles every figure in the tool.
+If you write about a hollow dot as though it were a finding, you are reporting
+noise. The chart is trying to stop you.
 
-Support runs through greens and opposition through warm earth tones rather than
-green against blue. Green and blue sit on the axis that red-green color
-blindness affects; green against ochre separates on the blue-yellow axis and
-stays readable under deuteranopia and protanopia.
+### Crosstab
 
-## License
+One question broken out by one other thing, as a table. Useful when you want
+the exact numbers rather than a picture.
 
-Licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).
+### General vs. local
 
-The practice file in `data/` is simulated. It is shaped like a real survey
-extract so the controls can be learned before real data arrives, and the
-general-to-local gap in it was put there deliberately. None of its numbers
-estimate anything about actual public opinion.
+Some surveys ask people about something in general and also about that same
+thing where they live. People often answer those two differently — broadly in
+favor of wind farms, less keen on one going up down the road. Researchers call
+this NIMBY, for "not in my back yard."
+
+Comparing those two answers needs a particular kind of test, because they came
+from the same people rather than from two separate groups. This tab does that
+properly.
+
+### Regression
+
+The one that takes real thought.
+
+Here is the problem it solves. Say rural people are less supportive of a local
+solar farm than city people. Rural areas also lean Republican, and Republicans
+are less supportive too. So is what you are seeing about *rural*, or about
+*Republican* wearing a rural disguise? A table cannot separate those. This can.
+
+---
+
+## The one idea you actually have to understand
+
+**Survey weights.**
+
+A survey does not reach a perfect miniature of the country. Some people are
+easier to reach and likelier to answer, so a raw sample usually ends up older,
+more educated, and less representative than it should be.
+
+The people running the survey know this, and they correct it. They work out
+how many people each respondent should stand for, and attach that number to
+them. A twenty-year-old who is hard to reach might count for two people; a
+retiree who answers everything might count for half of one. That number is the
+**weight**.
+
+Percentages calculated without the weights describe *the people who answered
+the survey*. Percentages calculated with them describe *the country*. It is
+the second one you want, essentially always.
+
+The panel on the left of the screen shows the weighting status at all times,
+and turns orange if no weight is set. If it is orange, do not write down any
+number you see.
+
+### A second idea, once the first one is comfortable
+
+Look at the panel on the left again. For a real Pew survey it might say
+**8,638 cases** but **effective n 4,126**.
+
+Weighting costs you something. When some people count for more than others,
+the survey carries less information than the raw headcount suggests. That
+second number is the honest one: this survey of 8,638 people tells you about
+as much as a perfect survey of 4,126 would.
+
+That is why the tool shows a margin of error — the little ± next to every
+percentage. A figure of 78% with a margin of 1.5 means the true number is
+probably somewhere between 76.5% and 79.5%. It does not mean 78%.
+
+---
+
+## What this tool will not do
+
+It will not tell you that something causes something else. Surveys record what
+people say at one moment. If supporters of solar power are younger, that is a
+pattern, not a mechanism, and it does not tell you that getting older makes
+people dislike solar.
+
+It will not rescue a question that was asked badly, and it will not tell you
+that the question you are treating as a measure of one thing is really a
+measure of something else. Only reading the questionnaire does that.
+
+It will not stop you from testing forty things and reporting the one that came
+out interesting. If you look hard enough at any survey, some group will differ
+from some other group by chance alone. Decide what you are looking for before
+you look.
+
+---
+
+## If you get stuck
+
+- `docs/FIRST-ANALYSIS.md` walks through the practice file step by step.
+- `docs/PEW-ATP-NOTES.md` covers the quirks of Pew's files specifically.
+- `docs/METHODS.md` gives the formula behind every number, and says where each
+  one is approximate.
+- `docs/README-technical.md` is the version of this page for people who want
+  the implementation details.
+
+There is a practice file built in — a made-up survey about solar power, with
+a pattern deliberately hidden in it. Nothing in it is real, so it is a safe
+place to press every button and see what happens. The link is on the Load
+screen.
+
+---
+
+Licensed [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). Use
+it, change it, teach with it; keep the same license on anything you build from
+it.

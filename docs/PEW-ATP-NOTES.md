@@ -133,3 +133,30 @@ in `F_PARTYSUM_FINAL` that no automatic rule could find.
 The dictionary holds question wording and answer labels, both already public in
 the questionnaire PDF. It contains no respondent data, so it can be committed
 to a repository or sent to a collaborator even when the data file cannot.
+
+## Reading the .sav in the browser
+
+`js/sav.js` reads an SPSS file directly, so the Python step is optional. Drag
+the `.sav` onto the page and the question wording, the answer labels and the
+declared refusal codes all arrive with the data.
+
+Checked against Wave 148: the browser reader and the Python converter produce
+the same 8,638 cases, the same effective n of 4,126, and the same 77.9% on
+`ENV2_d`. An 8,638-case file takes roughly nine seconds to read.
+
+Two limits worth knowing:
+
+- **Very long strings are split.** SPSS stores a string longer than 255
+  characters across several internal variables and records the joins in an
+  extension the reader skips. Wave 148 comes out with 174 columns where the
+  Python route gives 162; the extra twelve are segments of long open-end and
+  derived string variables. They are text, not answers, and they are filtered
+  out of the analysis menus anyway. If those variables matter to a project,
+  use the Python converter.
+- **Dates stay as numbers.** SPSS stores a timestamp as seconds since 1582,
+  and the reader does not convert it. The interview start and end columns are
+  therefore large numbers rather than dates. They are excluded from the
+  analysis menus.
+
+`tools/make_dictionary.py` remains the way in for a zlib-compressed `.zsav`,
+which the browser reader declines rather than reading wrongly.
