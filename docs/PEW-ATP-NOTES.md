@@ -113,3 +113,23 @@ measurement of NIMBY opposition, and calling it one would not survive review.
 A genuine local-support item would have to come from elsewhere: a wave that asks
 it directly, the Yale county-level modeled estimates, or a survey Elsa fields
 herself in the south-central states.
+
+## Start here: one command
+
+`tools/make_dictionary.py` reads the `.sav` and writes both files the tool
+needs:
+
+```
+pip install pyreadstat
+python tools/make_dictionary.py ATP_W148.sav
+```
+
+That produces `ATP_W148.csv` and `ATP_W148_dictionary.json`. Load the CSV, then
+load the dictionary from the Codebook tab, and every dropdown, table and chart
+in the tool names its variables by the question that was asked rather than by a
+column name. It also picks up the refusal codes Pew declares, including the 9
+in `F_PARTYSUM_FINAL` that no automatic rule could find.
+
+The dictionary holds question wording and answer labels, both already public in
+the questionnaire PDF. It contains no respondent data, so it can be committed
+to a repository or sent to a collaborator even when the data file cannot.

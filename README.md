@@ -44,6 +44,13 @@ the shift between them. For an ordered scale it also reports the combined
 supporting categories — the number that normally gets quoted — with a confidence
 interval computed by collapsing the categories at the respondent level.
 
+**Who answers how** takes one question and breaks it out across every
+background variable at once, on a single shared scale with the whole-sample
+figure marked. A group whose interval overlaps that line is drawn hollow,
+because the survey cannot tell it apart from the average; the filled dots are
+the differences worth writing about. This is usually the right first look at a
+new question.
+
 **Crosstab** breaks a question out by a grouping variable as weighted row
 percentages, with a design-adjusted chi-square test and Cramér's V.
 
@@ -63,6 +70,11 @@ predictions, neither of which Pew publishes.
 ## Where to get data
 
 ### Pew Research Center
+
+Run `tools/make_dictionary.py` on the downloaded `.sav` first. It writes the CSV
+and a dictionary of question wording and answer labels, so the tool can name
+variables by what was asked instead of by column name. See
+`docs/PEW-ATP-NOTES.md`.
 
 Free, but requires a Pew account and agreement to their terms and conditions.
 Datasets are SPSS `.sav` files, which a browser cannot read directly; see

@@ -54,6 +54,7 @@
       <button class="tab" role="tab" id="tab-load" aria-controls="panel-load" aria-selected="true">Load data</button>
       <button class="tab" role="tab" id="tab-codebook" aria-controls="panel-codebook" aria-selected="false" disabled>Codebook</button>
       <button class="tab" role="tab" id="tab-item" aria-controls="panel-item" aria-selected="false" disabled>One item</button>
+      <button class="tab" role="tab" id="tab-profile" aria-controls="panel-profile" aria-selected="false" disabled>Who answers how</button>
       <button class="tab" role="tab" id="tab-cross" aria-controls="panel-cross" aria-selected="false" disabled>Crosstab</button>
       <button class="tab" role="tab" id="tab-gap" aria-controls="panel-gap" aria-selected="false" disabled>General vs. local</button>
       <button class="tab" role="tab" id="tab-model" aria-controls="panel-model" aria-selected="false" disabled>Regression</button>
@@ -136,6 +137,37 @@
       </div>
 
       <div id="item-body"></div>
+    </section>
+
+    <!-- ---------------------------------------------------------- profile -->
+    <section class="panel" role="tabpanel" id="panel-profile" aria-labelledby="tab-profile" hidden>
+      <h2>Who answers how</h2>
+      <p class="lede">
+        One question, broken out across every background variable at once. All
+        the panels share a single scale and a line marking the whole-sample
+        figure, so the groups that sit away from the average are the ones that
+        stand out.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="profile-item">Question</label>
+          <select id="profile-item"></select>
+        </div>
+      </div>
+
+      <div id="profile-roles"></div>
+
+      <div class="card">
+        <h3>Break out by</h3>
+        <p class="role-legend">
+          Anything with a manageable number of categories can go here. The
+          starting selection is the background variables found in the file.
+        </p>
+        <div class="predictor-grid" id="profile-groups"></div>
+      </div>
+
+      <div id="profile-body"></div>
     </section>
 
     <!-- --------------------------------------------------------- crosstab -->

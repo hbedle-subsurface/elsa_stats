@@ -634,6 +634,138 @@
     return svg;
   }
 
+  // ----------------------------------------------- demographic profile
+
+  /* One question, broken out across several grouping variables at once.
+   *
+   * Every panel shares one fixed 0-100 axis and one dashed line at the
+   * whole-sample percentage, so the eye can carry a comparison from one
+   * block to the next without re-reading the numbers.
+   *
+   * A dot is filled only when its confidence interval excludes the
+   * whole-sample figure. Groups that a survey this size cannot tell apart
+   * from the average are drawn hollow and grey, so the colored dots are the
+   * ones worth talking about.
+   *
+   * panels: [{title, rows:[{label, p, moe, n}]}]
+   */
+  function profilePlot(container, panels, overall, opts) {
+    opts = opts || {};
+    container.innerHTML = '';
+    var P = palette();
+
+    var labelW = opts.labelWidth || 168;
+    var rowH = 24, panelGap = 16, titleH = 20;
+    var padTop = 30, padBottom = 46, padRight = 118;
+    var W = 780, plotX0 = labelW, plotX1 = W - padRight;
+
+    var H = padTop;
+    panels.forEach(function (pn) { H += titleH + pn.rows.length * rowH + panelGap; });
+    H += padBottom;
+
+    var svg = svgRoot(W, H);
+    function X(p) { return plotX0 + (plotX1 - plotX0) * p; }
+
+    // whole-sample reference line, drawn behind everything
+    var refX = X(overall);
+    svg.appendChild(el('line', {
+      x1: refX, x2: refX, y1: padTop - 14, y2: H - padBottom + 2,
+      stroke: P.support[0], 'stroke-width': 1, 'stroke-dasharray': '4 3', opacity: 0.75
+    }));
+    svg.appendChild(el('text', {
+      x: refX, y: 13, 'text-anchor': 'middle', 'font-size': 10, fill: P.support[0]
+    }, 'everyone: ' + (100 * overall).toFixed(0) + '%'));
+
+    for (var g = 0; g <= 100; g += 25) {
+      var gx = X(g / 100);
+      if (Math.abs(gx - refX) < 14) continue;
+      svg.appendChild(el('line', {
+        x1: gx, x2: gx, y1: padTop - 14, y2: H - padBottom + 2,
+        stroke: 'var(--grid)', 'stroke-width': 1
+      }));
+    }
+
+    var y = padTop;
+    panels.forEach(function (pn) {
+      svg.appendChild(el('text', {
+        x: 8, y: y + 2, 'font-size': 11.5, fill: 'var(--accent)', 'font-weight': 600
+      }, pn.title));
+      svg.appendChild(el('line', {
+        x1: 8, x2: labelW - 12, y1: y + 8, y2: y + 8,
+        stroke: 'var(--rule)', 'stroke-width': 1
+      }));
+      y += titleH;
+
+      pn.rows.forEach(function (r) {
+        var cy = y + rowH / 2 - 2;
+
+        svg.appendChild(el('text', {
+          x: labelW - 12, y: cy + 4, 'text-anchor': 'end', 'font-size': 11.5, fill: 'var(--ink)'
+        }, r.label));
+
+        var distinct = isFinite(r.moe) &&
+          (r.p - r.moe > overall || r.p + r.moe < overall);
+        var color = !distinct ? 'var(--slate)'
+          : (r.p > overall ? P.support[0] : P.oppose[1]);
+
+        if (isFinite(r.moe) && r.moe > 0) {
+          svg.appendChild(el('line', {
+            x1: X(Math.max(0, r.p - r.moe)), x2: X(Math.min(1, r.p + r.moe)),
+            y1: cy, y2: cy, stroke: color, 'stroke-width': 1.25,
+            opacity: distinct ? 0.9 : 0.45
+          }));
+        }
+
+        var dot = el('circle', {
+          cx: X(r.p), cy: cy, r: 5.5,
+          fill: distinct ? color : 'var(--panel)',
+          stroke: color, 'stroke-width': 1.5,
+          opacity: distinct ? 1 : 0.65
+        });
+        dot.appendChild(el('title', {}, r.label + ': ' + (100 * r.p).toFixed(1) +
+          '% \u00B1' + (100 * r.moe).toFixed(1) + ' (n=' + r.n + ')'));
+        svg.appendChild(dot);
+
+        svg.appendChild(el('text', {
+          x: plotX1 + 8, y: cy + 4, 'font-size': 11.5,
+          fill: distinct ? 'var(--ink)' : 'var(--slate)',
+          'font-variant-numeric': 'tabular-nums'
+        }, (100 * r.p).toFixed(0) + '%'));
+
+        svg.appendChild(el('text', {
+          x: plotX1 + 42, y: cy + 4, 'font-size': 9.5, fill: 'var(--slate)',
+          'font-variant-numeric': 'tabular-nums'
+        }, '\u00B1' + (100 * r.moe).toFixed(1)));
+
+        svg.appendChild(el('text', {
+          x: plotX1 + 78, y: cy + 4, 'font-size': 9.5, fill: 'var(--slate)',
+          'font-variant-numeric': 'tabular-nums'
+        }, 'n=' + r.n));
+
+        y += rowH;
+      });
+      y += panelGap;
+    });
+
+    percentAxis(svg, plotX0, plotX1, H - padBottom + 2);
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: H - padBottom + 34, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'percent giving this answer'));
+
+    container.appendChild(svg);
+
+    var key = document.createElement('div');
+    key.className = 'legend';
+    key.innerHTML =
+      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.support[0] + '"></span>above the whole-sample figure</span>' +
+      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.oppose[1] + '"></span>below it</span>' +
+      '<span class="legend-item"><span class="legend-swatch" style="background:var(--panel);border-color:var(--slate)"></span>not distinguishable from it</span>';
+    container.appendChild(key);
+
+    return svg;
+  }
+
   // -------------------------------------------------------------- download
 
   function downloadSVG(svg, filename) {
@@ -664,6 +796,7 @@
     palette: palette,
     divergingBars: divergingBars,
     coefficientPlot: coefficientPlot,
+    profilePlot: profilePlot,
     adjustedPlot: adjustedPlot,
     gapPlot: gapPlot,
     barsWithCI: barsWithCI,

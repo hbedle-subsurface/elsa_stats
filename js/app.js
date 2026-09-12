@@ -17,8 +17,10 @@
     missingCodes: [],
     // per-variable category roles for the gap panel: name -> {value: 'yes'|'no'|'drop'}
     roles: {},
-    // value labels typed by the user: name -> {code: label}
+    // value labels: name -> {code: label}
     labels: {},
+    // question text: name -> {short, question}
+    questions: {},
     // whether refusal codes are excluded from percentage bases
     excludeRefusals: false
   };
@@ -32,6 +34,29 @@
     var m = state.labels[varName];
     if (m && m[String(value)] !== undefined) return m[String(value)];
     return String(value);
+  }
+
+  /* The readable name for a variable: the question's own wording when a
+   * dictionary has been loaded, the raw column name otherwise. */
+  function varLabel(varName) {
+    var q = state.questions[varName];
+    return (q && q.short) ? q.short : varName;
+  }
+
+  function varQuestion(varName) {
+    var q = state.questions[varName];
+    return (q && q.question) ? q.question : '';
+  }
+
+  /* How a variable is named in a dropdown: wording first, since that is what
+   * she is looking for, with the column name after it so the row can always
+   * be traced back to the codebook. */
+  function varOptionText(varName, distinct) {
+    var lab = varLabel(varName);
+    var tail = ' \u00B7 ' + varName + (distinct ? ' (' + distinct + ')' : '');
+    if (lab === varName) return varName + (distinct ? '  (' + distinct + ')' : '');
+    if (lab.length > 58) lab = lab.slice(0, 55).replace(/\s+\S*$/, '') + '\u2026';
+    return lab + tail;
   }
 
   function hasLabels(varName) {
@@ -73,7 +98,7 @@
 
   // ================================================================= tabs
 
-  var TABS = ['load', 'codebook', 'item', 'cross', 'gap', 'model'];
+  var TABS = ['load', 'codebook', 'item', 'profile', 'cross', 'gap', 'model'];
 
   function showTab(key) {
     TABS.forEach(function (t) {
@@ -90,6 +115,7 @@
       showTab(t);
       if (t === 'codebook') renderCodebook();
       if (t === 'item') renderItem();
+      if (t === 'profile') renderProfileSetup();
       if (t === 'cross') renderCross();
       if (t === 'gap') renderGap();
       if (t === 'model') renderModelSetup();
@@ -97,7 +123,7 @@
   });
 
   function enableAnalysisTabs(on) {
-    ['codebook', 'item', 'cross', 'gap', 'model'].forEach(function (t) {
+    ['codebook', 'item', 'profile', 'cross', 'gap', 'model'].forEach(function (t) {
       $('tab-' + t).disabled = !on;
     });
   }
@@ -302,7 +328,15 @@
 
   function analysisVars() {
     return state.profiles.filter(function (p) {
-      return p.name !== state.weightVar && p.kind !== 'empty' && p.kind !== 'free-text' && p.distinct > 1;
+      if (p.name === state.weightVar) return false;
+      if (p.kind === 'empty' || p.kind === 'free-text') return false;
+      if (p.distinct <= 1) return false;
+      // a numeric column with a distinct value for nearly every case is an
+      // identifier or a timestamp, not an answer
+      if (p.allNumeric && p.distinct > 40 && p.distinct > p.nNonMissing * 0.5) return false;
+      if (/^(QKEY|RESPID|CASEID)$/i.test(p.name)) return false;
+      if (/INTERVIEW_(START|END)/i.test(p.name)) return false;
+      return true;
     });
   }
 
@@ -318,7 +352,7 @@
     list.forEach(function (p) {
       var opt = document.createElement('option');
       opt.value = p.name;
-      opt.textContent = p.name + '  (' + p.distinct + ')';
+      opt.textContent = varOptionText(p.name, p.distinct);
       sel.appendChild(opt);
     });
     if (prev && Array.prototype.some.call(sel.options, function (o) { return o.value === prev; })) {
@@ -339,6 +373,7 @@
     fillSelect($('gap-b'), vars);
     fillSelect($('gap-group'), vars, true, '\u2014 whole sample \u2014');
     fillSelect($('model-outcome'), vars);
+    fillSelect($('profile-item'), vars);
 
     // sensible defaults: look for names hinting at general and local items
     var general = vars.find(function (p) { return /(solar|renew|wind).*(gener|expand|more|country|nation)|^(solar|wind)_(national|general)/i.test(p.name); });
@@ -450,6 +485,7 @@
 
     $('refusal-toggle').addEventListener('change', function () {
       state.excludeRefusals = this.checked;
+      state.roles = {};          // re-derive, since refusals change side
       renderCodebook();
     });
   }
@@ -477,8 +513,31 @@
     reader.onload = function () {
       try {
         var obj = JSON.parse(String(reader.result));
-        Object.keys(obj).forEach(function (k) { state.labels[k] = obj[k]; });
+        var refusals = {};
+        Object.keys(obj).forEach(function (k) {
+          var e = obj[k];
+          // a full dictionary from make_dictionary.py, or a plain label map
+          if (e && (e.labels || e.short || e.question)) {
+            if (e.labels) state.labels[k] = e.labels;
+            if (e.short || e.question) {
+              state.questions[k] = { short: e.short, question: e.question };
+            }
+            (e.refusals || []).forEach(function (c) { refusals[c] = true; });
+          } else {
+            state.labels[k] = e;
+          }
+        });
+        // refusal codes named in the dictionary beat anything guessed from
+        // the data: F_PARTYSUM_FINAL uses 9, which no rule could catch
+        var named = Object.keys(refusals);
+        if (named.length) {
+          named.forEach(function (c) {
+            if (state.detectedRefusals.indexOf(c) === -1) state.detectedRefusals.push(c);
+          });
+        }
         state.roles = {};
+        populateSelectors();
+        renderVarList();
         renderCodebook();
       } catch (err) {
         $('cb-detail').innerHTML = '<div class="notice error"><p>That file is not readable ' +
@@ -622,7 +681,219 @@
     });
   }
 
+
+  // ============================================================== profile
+
+  var profileGroups = {};   // variable name -> included?
+
+  $('profile-item').addEventListener('change', function () {
+    renderProfileRoles();
+    renderProfileGroups();
+    renderProfile();
+  });
+
+  function renderProfileSetup() {
+    if (!state.rows.length) return;
+    renderProfileRoles();
+    renderProfileGroups();
+    renderProfile();
+  }
+
+  function renderProfileRoles() {
+    var name = $('profile-item').value;
+    var target = $('profile-roles');
+    if (!name) { target.innerHTML = ''; return; }
+    ensureRoles(name);
+    var p = state.profileByName[name];
+
+    var q = varQuestion(name);
+    var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>';
+    if (q) {
+      html += '<p style="margin:-4px 0 14px;color:var(--slate);font-family:var(--font-text);' +
+        'font-size:13.5px;max-width:72ch">' + escapeHTML(q) + '</p>';
+    }
+    html += '<p class="role-legend">Mark the answers being tracked. The chart shows the ' +
+      'percentage of each group giving one of them.</p><div class="cat-editor">';
+    p.values.forEach(function (v) {
+      var role = state.roles[name][v.value] || 'no';
+      html += '<div class="cat-row"><span class="cat-value">' +
+        escapeHTML(showValue(name, v.value)) + '</span>' +
+        '<span class="cat-n">' + fmt(v.n) + '</span>' +
+        '<select data-pfvar="' + escapeHTML(name) + '" data-value="' + escapeHTML(v.value) + '">' +
+        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>track this</option>' +
+        '<option value="no"' + (role === 'no' ? ' selected' : '') + '>other answer</option>' +
+        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>exclude</option>' +
+        '</select></div>';
+    });
+    html += '</div></div>';
+    target.innerHTML = html;
+
+    target.querySelectorAll('select').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        state.roles[this.getAttribute('data-pfvar')][this.getAttribute('data-value')] = this.value;
+        renderProfile();
+      });
+    });
+  }
+
+  /* Variables that make sense as a breakdown: a handful of categories, and
+   * not the question being broken down. Pew names its background variables
+   * with an F_ prefix, so those are selected to begin with; in a file with no
+   * such convention, everything small enough is offered. */
+  function backgroundCandidates() {
+    var outcome = $('profile-item').value;
+    return state.profiles.filter(function (p) {
+      return p.name !== outcome && p.name !== state.weightVar &&
+        p.kind !== 'empty' && p.kind !== 'free-text' &&
+        p.distinct >= 2 && p.distinct <= 10;
+    });
+  }
+
+  /* Which breakdowns to switch on before she has chosen anything.
+   *
+   * Turning on every background variable in a Pew file would draw a chart
+   * three screens tall. These are the handful a first look normally wants,
+   * matched by name; the rest are one click away. */
+  var USUAL_BREAKDOWNS = [
+    /AGECAT|^AGE|_AGE/i,
+    /PARTYSUM|^PARTY|_PARTY/i,
+    /EDUCCAT$|^EDUC$|_EDUC$/i,
+    /USR_SELFID|URBAN|RURAL/i,
+    /GENDER|^F_SEX/i,
+    /CDIVISION|CREGION/i,
+    /INC_TIER|INCOME/i
+  ];
+
+  /* Position in that list is a priority order, so a file holding several
+   * geography variables does not crowd out age and party. */
+  function breakdownRank(name) {
+    for (var i = 0; i < USUAL_BREAKDOWNS.length; i++) {
+      if (USUAL_BREAKDOWNS[i].test(name)) return i;
+    }
+    return 999;
+  }
+
+  function renderProfileGroups() {
+    var cands = backgroundCandidates();
+
+    var unset = cands.filter(function (p) { return profileGroups[p.name] === undefined; });
+    if (unset.length) {
+      var ranked = unset.slice().sort(function (a, b) {
+        var ra = breakdownRank(a.name), rb = breakdownRank(b.name);
+        if (ra !== rb) return ra - rb;
+        return a.distinct - b.distinct;
+      });
+      var taken = {};
+      ranked.forEach(function (p) {
+        var r = breakdownRank(p.name);
+        // one variable per concept: F_EDUCCAT and F_EDUCCAT2 say the same thing
+        var want = r < 999 && !taken[r] && Object.keys(taken).length < 5;
+        profileGroups[p.name] = want;
+        if (want) taken[r] = true;
+      });
+    }
+
+    var html = '';
+    cands.forEach(function (p) {
+      var on = profileGroups[p.name];
+      html += '<div class="predictor-row' + (on ? ' is-on' : '') +
+        '" data-gr="' + escapeHTML(p.name) + '">' +
+        '<input type="checkbox" data-gvar="' + escapeHTML(p.name) + '"' + (on ? ' checked' : '') +
+        ' aria-label="break out by ' + escapeHTML(varLabel(p.name)) + '">' +
+        '<span class="pname">' + escapeHTML(varLabel(p.name)) + '</span>' +
+        '<span class="pmeta">' + p.distinct + ' categories</span>' +
+        '<span class="pmeta">' + escapeHTML(p.name) + '</span></div>';
+    });
+
+    var grid = $('profile-groups');
+    grid.innerHTML = html || '<p class="empty-state">Nothing in this file has few enough ' +
+      'categories to break out by.</p>';
+
+    grid.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var v = this.getAttribute('data-gvar');
+        profileGroups[v] = this.checked;
+        var row = grid.querySelector('[data-gr="' + v.replace(/"/g, '\\"') + '"]');
+        if (row) row.classList.toggle('is-on', this.checked);
+        renderProfile();
+      });
+    });
+  }
+
+  function renderProfile() {
+    var name = $('profile-item').value;
+    var body = $('profile-body');
+    if (!name) { body.innerHTML = ''; return; }
+
+    ensureRoles(name);
+    var yes = yesList(name);
+    if (!yes.length) {
+      body.innerHTML = '<div class="notice"><p>Mark at least one answer to track. ' +
+        (hasLabels(name) ? '' : 'This variable is still bare numeric codes, so nothing could ' +
+        'be guessed; load a dictionary in the Codebook tab and the answers will name themselves.') +
+        '</p></div>';
+      return;
+    }
+
+    var missing = missingSet().concat(dropList(name));
+    var overall = Stats.collapsedProportion(state.rows, name, yes, state.weightVar, missing);
+    if (!overall) { body.innerHTML = '<p class="empty-state">No cases answered this.</p>'; return; }
+
+    var chosen = Object.keys(profileGroups).filter(function (k) {
+      return profileGroups[k] && state.profileByName[k];
+    });
+
+    var panels = [];
+    chosen.forEach(function (gv) {
+      var prof = state.profileByName[gv];
+      var rows = [];
+      prof.values.forEach(function (lv) {
+        var code = String(lv.value);
+        if (missingSet().indexOf(code) !== -1) return;
+        // "people who would not say which party they lean toward" is not a
+        // group anyone wants a bar for. Refusals belong in the base of the
+        // question being measured, not on the axis of who was asked it.
+        if (state.detectedRefusals.indexOf(code) !== -1) return;
+        var subset = state.rows.filter(function (r) { return String(r[gv]) === code; });
+        var cp = Stats.collapsedProportion(subset, name, yes, state.weightVar, missing);
+        if (!cp || cp.n < 25) return;   // too few cases to plot a point for
+        rows.push({ label: labelOf(gv, lv.value), p: cp.p, moe: cp.moe, n: cp.n });
+      });
+      if (rows.length >= 2) panels.push({ title: varLabel(gv), rows: rows });
+    });
+
+    if (!panels.length) {
+      body.innerHTML = '<p class="empty-state">Check at least one variable to break out by.</p>';
+      return;
+    }
+
+    var tracked = yes.map(function (v) { return labelOf(name, v); }).join(', ');
+
+    var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>' +
+      '<p class="headline"><span class="big">' + Stats.pct(overall.p) + '</span> of everyone ' +
+      'answered ' + escapeHTML(tracked) + ', \u00B1' + (100 * overall.moe).toFixed(1) + ' points.</p>' +
+      '<div class="chart" id="profile-chart"></div>' +
+      '<p style="margin:14px 0 0;color:var(--slate);font-size:12.5px;max-width:72ch">' +
+      'A group whose interval overlaps the whole-sample line is drawn hollow: this survey ' +
+      'cannot tell it apart from the average, and a difference read off those dots would not ' +
+      'hold up. Groups with fewer than 25 cases are left out rather than plotted with an ' +
+      'interval too wide to mean anything.</p>' +
+      '<div class="figure-actions"><button class="secondary" id="profile-dl">Save figure as SVG</button></div>' +
+      '</div>';
+
+    body.innerHTML = html;
+
+    var svg = Charts.profilePlot($('profile-chart'), panels, overall.p, {
+      labelWidth: 176,
+      axisLabel: 'percent answering ' + tracked
+    });
+    $('profile-dl').addEventListener('click', function () {
+      Charts.downloadSVG(svg, 'profile_' + name + '.svg');
+    });
+  }
+
   // ============================================================= crosstab
+
 
   $('cross-row').addEventListener('change', renderCross);
   $('cross-col').addEventListener('change', renderCross);
@@ -803,7 +1074,11 @@
    * panel exists to avoid. */
   function guessRole(value, varName) {
     var score = CSV.scaleScore(varName ? labelOf(varName, value) : value);
-    if (score === null || score === 100) return 'drop';
+    // A refusal counts as an answer in the denominator unless the Codebook
+    // switch says otherwise, which is what reproduces Pew's published
+    // figures. It is never the answer being tracked.
+    if (score === 100) return state.excludeRefusals ? 'drop' : 'no';
+    if (score === null) return 'drop';
     if (score < 0) return 'yes';
     if (score === 0) return 'drop';
     return 'no';
