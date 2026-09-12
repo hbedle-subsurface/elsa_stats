@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Survey Workbench</title>
+<meta name="description" content="Browser tool for weighted analysis of public opinion survey files. Runs entirely on your own machine.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div>
+    <h1>Survey Workbench</h1>
+    <div class="subtitle">Weighted analysis of public opinion data, in your own browser</div>
+  </div>
+  <div class="offline-badge">
+    <b>Nothing leaves this browser.</b> No uploads, no servers, no analytics.
+  </div>
+</header>
+
+<div class="shell">
+
+  <!-- ==================================================== instrument rail -->
+  <aside class="rail">
+    <section>
+      <h2>Data state</h2>
+      <div class="readout is-empty" id="readout">
+        <div class="readout-file" id="readout-file">no file loaded</div>
+        <dl>
+          <dt>cases</dt><dd id="ro-cases">&mdash;</dd>
+          <dt>variables</dt><dd id="ro-vars">&mdash;</dd>
+          <dt>weight</dt><dd class="code" id="ro-weight">&mdash;</dd>
+          <dt>effective n</dt><dd id="ro-neff">&mdash;</dd>
+          <dt>design effect</dt><dd id="ro-deff">&mdash;</dd>
+        </dl>
+        <p class="readout-note quiet" id="readout-note">Load a file to begin.</p>
+      </div>
+    </section>
+
+    <section id="rail-vars" hidden>
+      <h2>Variables</h2>
+      <label class="field" style="gap:4px">
+        <span style="font-size:11.5px;color:var(--slate)">Search by name or value</span>
+        <input type="text" class="var-search" id="var-search" placeholder="solar, party, WEIGHT&hellip;" autocomplete="off">
+      </label>
+      <ul class="var-list" id="var-list"></ul>
+    </section>
+  </aside>
+
+  <!-- ===================================================== working panel -->
+  <main class="work">
+    <div class="tabs" role="tablist" aria-label="Analysis steps">
+      <button class="tab" role="tab" id="tab-load" aria-controls="panel-load" aria-selected="true">Load data</button>
+      <button class="tab" role="tab" id="tab-codebook" aria-controls="panel-codebook" aria-selected="false" disabled>Codebook</button>
+      <button class="tab" role="tab" id="tab-item" aria-controls="panel-item" aria-selected="false" disabled>One item</button>
+      <button class="tab" role="tab" id="tab-cross" aria-controls="panel-cross" aria-selected="false" disabled>Crosstab</button>
+      <button class="tab" role="tab" id="tab-gap" aria-controls="panel-gap" aria-selected="false" disabled>General vs. local</button>
+      <button class="tab" role="tab" id="tab-model" aria-controls="panel-model" aria-selected="false" disabled>Regression</button>
+    </div>
+
+    <!-- ------------------------------------------------------------ load -->
+    <section class="panel" role="tabpanel" id="panel-load" aria-labelledby="tab-load">
+      <h2>Load a survey file</h2>
+      <p class="lede">
+        Drop in a CSV or tab-delimited file. The file is read by this page and
+        stays on your machine &mdash; there is no server behind this tool, so a
+        confidential or unpublished survey can be analyzed here safely.
+      </p>
+
+      <div class="dropzone" id="dropzone">
+        <p>Drag a <code>.csv</code> or <code>.tsv</code> file here</p>
+        <input type="file" id="file-input" accept=".csv,.tsv,.txt,.tab" hidden>
+        <button id="browse-btn">Choose a file</button>
+        <p style="margin-top:16px;font-size:12.5px">
+          or <button class="link" id="demo-btn">open the synthetic practice file</button>
+          to try the tool before downloading real data
+        </p>
+      </div>
+
+      <div id="load-message"></div>
+
+      <div class="card" style="margin-top:18px">
+        <h3>Getting survey data out of SPSS format</h3>
+        <p style="margin-top:0;color:var(--slate);max-width:66ch">
+          Pew releases its datasets as SPSS <code>.sav</code> files, which a
+          browser cannot read. Converting one to CSV takes a few lines of
+          Python. <code>docs/CONVERTING-SAV.md</code> in this repository has the
+          script, including how to keep the value labels rather than the numeric
+          codes.
+        </p>
+      </div>
+    </section>
+
+    <!-- -------------------------------------------------------- codebook -->
+    <section class="panel" role="tabpanel" id="panel-codebook" aria-labelledby="tab-codebook" hidden>
+      <h2>Codebook</h2>
+      <p class="lede">
+        Every variable in the file, with its response categories and how often
+        each one appears. Set the survey weight here, and mark any codes that
+        stand for refusals or non-responses so they are excluded from
+        percentage bases rather than counted as answers.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="weight-select">Survey weight</label>
+          <select id="weight-select"></select>
+        </div>
+        <div class="field">
+          <label for="missing-codes">Treat these codes as missing</label>
+          <input type="text" id="missing-codes" placeholder="98, Not asked" style="width:240px">
+        </div>
+        <button class="secondary" id="apply-missing">Apply</button>
+      </div>
+
+      <div id="refusal-switch"></div>
+
+      <div id="codebook-body"></div>
+    </section>
+
+    <!-- -------------------------------------------------------- one item -->
+    <section class="panel" role="tabpanel" id="panel-item" aria-labelledby="tab-item" hidden>
+      <h2>One item</h2>
+      <p class="lede">
+        The distribution of a single question, weighted and unweighted side by
+        side. The gap between the two columns is what the survey weights are
+        correcting for.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="item-select">Question</label>
+          <select id="item-select"></select>
+        </div>
+      </div>
+
+      <div id="item-body"></div>
+    </section>
+
+    <!-- --------------------------------------------------------- crosstab -->
+    <section class="panel" role="tabpanel" id="panel-cross" aria-labelledby="tab-cross" hidden>
+      <h2>Crosstab</h2>
+      <p class="lede">
+        One question broken out by a grouping variable, as weighted row
+        percentages. The test below the table asks whether the differences
+        between groups are larger than sampling error would produce.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="cross-row">Group (rows)</label>
+          <select id="cross-row"></select>
+        </div>
+        <div class="field">
+          <label for="cross-col">Question (columns)</label>
+          <select id="cross-col"></select>
+        </div>
+      </div>
+
+      <div id="cross-body"></div>
+    </section>
+
+    <!-- -------------------------------------------------------------- gap -->
+    <section class="panel" role="tabpanel" id="panel-gap" aria-labelledby="tab-gap" hidden>
+      <h2>General support vs. local support</h2>
+      <p class="lede">
+        Two questions answered by the same people: whether they support a
+        technology in general, and whether they support it where they live. The
+        difference between those two percentages is the quantity at the center
+        of the NIMBY literature. Because both answers come from the same
+        respondents, the two percentages are correlated, and the comparison
+        uses McNemar's test on the people who answered the two questions
+        differently.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="gap-a">Question A &mdash; support in general</label>
+          <select id="gap-a"></select>
+        </div>
+        <div class="field">
+          <label for="gap-b">Question B &mdash; support locally</label>
+          <select id="gap-b"></select>
+        </div>
+        <div class="field">
+          <label for="gap-group">Break out by</label>
+          <select id="gap-group"></select>
+        </div>
+      </div>
+
+      <div id="gap-categories"></div>
+      <div id="gap-body"></div>
+    </section>
+
+    <!-- ------------------------------------------------------ regression -->
+    <section class="panel" role="tabpanel" id="panel-model" aria-labelledby="tab-model" hidden>
+      <h2>Regression</h2>
+      <p class="lede">
+        A crosstab shows one difference at a time. Rural residents are less
+        supportive of a local project, and rural areas also lean Republican, so
+        a rural difference in a crosstab may be a partisan difference wearing
+        rural clothing. A regression estimates each predictor's contribution
+        while the others are held constant, which is what separates the two.
+      </p>
+
+      <div class="card">
+        <h3>Outcome</h3>
+        <div class="controls">
+          <div class="field">
+            <label for="model-outcome">Question to explain</label>
+            <select id="model-outcome"></select>
+          </div>
+          <fieldset class="radios">
+            <legend>Model</legend>
+            <label><input type="radio" name="model-kind" value="linear" checked> linear probability</label>
+            <label><input type="radio" name="model-kind" value="logistic"> logistic</label>
+          </fieldset>
+        </div>
+        <div id="model-outcome-roles"></div>
+      </div>
+
+      <div class="card">
+        <h3>Predictors</h3>
+        <p class="role-legend">
+          Check each variable to include. A categorical predictor is entered as
+          one indicator per category except the reference, and its coefficients
+          are differences from that reference. Cases missing on any included
+          predictor are dropped from the model entirely, so adding a predictor
+          with many refusals shrinks the sample.
+        </p>
+        <div class="predictor-grid" id="model-predictors"></div>
+        <button id="model-fit">Fit model</button>
+      </div>
+
+      <div id="model-body"></div>
+    </section>
+  </main>
+</div>
+
+<footer class="page-footer">
+  <p>
+    Survey Workbench &mdash; a teaching and analysis tool for undergraduate
+    research on public opinion. Licensed
+    <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY&#8209;SA&nbsp;4.0</a>.
+    Variance estimates use Kish's effective sample size and do not account for
+    clustering or stratification in a sample design; see
+    <code>docs/METHODS.md</code>.
+  </p>
+</footer>
+
+<script src="js/stats.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/regression.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
