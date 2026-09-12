@@ -670,10 +670,11 @@
     var refX = X(overall);
     svg.appendChild(el('line', {
       x1: refX, x2: refX, y1: padTop - 14, y2: H - padBottom + 2,
-      stroke: P.support[0], 'stroke-width': 1, 'stroke-dasharray': '4 3', opacity: 0.75
+      stroke: 'var(--ink)', 'stroke-width': 1.25, 'stroke-dasharray': '5 3', opacity: 0.55
     }));
     svg.appendChild(el('text', {
-      x: refX, y: 13, 'text-anchor': 'middle', 'font-size': 10, fill: P.support[0]
+      x: refX, y: 13, 'text-anchor': 'middle', 'font-size': 10.5,
+      fill: 'var(--ink)', 'font-weight': 600
     }, 'everyone: ' + (100 * overall).toFixed(0) + '%'));
 
     for (var g = 0; g <= 100; g += 25) {
@@ -705,22 +706,24 @@
 
         var distinct = isFinite(r.moe) &&
           (r.p - r.moe > overall || r.p + r.moe < overall);
-        var color = !distinct ? 'var(--slate)'
-          : (r.p > overall ? P.support[0] : P.oppose[1]);
+        var color = !distinct ? '#9AA8A4'
+          : (r.p > overall ? P.positive : P.negative);
 
         if (isFinite(r.moe) && r.moe > 0) {
           svg.appendChild(el('line', {
             x1: X(Math.max(0, r.p - r.moe)), x2: X(Math.min(1, r.p + r.moe)),
-            y1: cy, y2: cy, stroke: color, 'stroke-width': 1.25,
-            opacity: distinct ? 0.9 : 0.45
+            y1: cy, y2: cy, stroke: color,
+            'stroke-width': distinct ? 2.5 : 1.5,
+            'stroke-linecap': 'round',
+            opacity: distinct ? 0.55 : 0.4
           }));
         }
 
         var dot = el('circle', {
-          cx: X(r.p), cy: cy, r: 5.5,
+          cx: X(r.p), cy: cy, r: distinct ? 6.5 : 5,
           fill: distinct ? color : 'var(--panel)',
-          stroke: color, 'stroke-width': 1.5,
-          opacity: distinct ? 1 : 0.65
+          stroke: color, 'stroke-width': distinct ? 1 : 1.5,
+          opacity: distinct ? 1 : 0.8
         });
         dot.appendChild(el('title', {}, r.label + ': ' + (100 * r.p).toFixed(1) +
           '% \u00B1' + (100 * r.moe).toFixed(1) + ' (n=' + r.n + ')'));
@@ -758,9 +761,9 @@
     var key = document.createElement('div');
     key.className = 'legend';
     key.innerHTML =
-      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.support[0] + '"></span>above the whole-sample figure</span>' +
-      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.oppose[1] + '"></span>below it</span>' +
-      '<span class="legend-item"><span class="legend-swatch" style="background:var(--panel);border-color:var(--slate)"></span>not distinguishable from it</span>';
+      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.positive + '"></span>clearly above everyone</span>' +
+      '<span class="legend-item"><span class="legend-swatch" style="background:' + P.negative + '"></span>clearly below</span>' +
+      '<span class="legend-item"><span class="legend-swatch" style="background:var(--panel);border-color:#9AA8A4"></span>too close to call</span>';
     container.appendChild(key);
 
     return svg;

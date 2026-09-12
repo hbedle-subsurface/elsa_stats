@@ -861,25 +861,39 @@
       html += '<p style="margin:-4px 0 14px;color:var(--slate);font-family:var(--font-text);' +
         'font-size:13.5px;max-width:72ch">' + escapeHTML(q) + '</p>';
     }
-    html += '<p class="role-legend">Mark the answers being tracked. The chart shows the ' +
-      'percentage of each group giving one of them.</p><div class="cat-editor">';
+    html += '<p class="role-legend">Pick the answer you want to count. Everyone else stays ' +
+      'in the total, so the percentage means \u201Cout of everyone who answered this ' +
+      'question, how many chose that\u201D.</p><div class="cat-editor">';
+
+    var counted = 0, inBase = 0, leftOut = 0;
     p.values.forEach(function (v) {
       var role = state.roles[name][v.value] || 'no';
-      html += '<div class="cat-row"><span class="cat-value">' +
+      if (role === 'yes') { counted += v.n; inBase += v.n; }
+      else if (role === 'no') { inBase += v.n; }
+      else { leftOut += v.n; }
+
+      html += '<div class="cat-row role-' + role + '"><span class="cat-value">' +
         escapeHTML(showValue(name, v.value)) + '</span>' +
         '<span class="cat-n">' + fmt(v.n) + '</span>' +
         '<select data-pfvar="' + escapeHTML(name) + '" data-value="' + escapeHTML(v.value) + '">' +
-        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>track this</option>' +
-        '<option value="no"' + (role === 'no' ? ' selected' : '') + '>other answer</option>' +
-        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>exclude</option>' +
+        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>\u25CF count these people</option>' +
+        '<option value="no"' + (role === 'no' ? ' selected' : '') + '>counts as someone else</option>' +
+        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>leave these people out</option>' +
         '</select></div>';
     });
-    html += '</div></div>';
+    html += '</div>';
+
+    html += '<p class="base-line">The percentage will be <b>' + fmt(counted) + '</b> people ' +
+      'out of <b>' + fmt(inBase) + '</b>' +
+      (leftOut ? ', with ' + fmt(leftOut) + ' left out entirely' : '') + '.</p>';
+
+    html += '</div>';
     target.innerHTML = html;
 
     target.querySelectorAll('select').forEach(function (sel) {
       sel.addEventListener('change', function () {
         state.roles[this.getAttribute('data-pfvar')][this.getAttribute('data-value')] = this.value;
+        renderProfileRoles();     // the running total below has to keep up
         renderProfile();
       });
     });
@@ -1044,6 +1058,20 @@
     var overall = Stats.collapsedProportion(state.rows, name, yes, state.weightVar, missing);
     if (!overall) { body.innerHTML = '<p class="empty-state">No cases answered this.</p>'; return; }
 
+    // Guard against a denominator made only of the answer being counted.
+    var others = (state.profileByName[name].values || []).filter(function (v) {
+      return (state.roles[name][v.value] || 'no') === 'no';
+    });
+    if (!others.length) {
+      body.innerHTML = '<div class="notice"><p><b>Every other answer is set to ' +
+        '\u201Cleave these people out\u201D, so the only people left are the ones who gave ' +
+        'the answer being counted.</b></p><p>That makes the percentage come out near 100 ' +
+        'and it does not mean anything: it is asking what share of the people who gave this ' +
+        'answer gave this answer. Set the answers you want to compare against to ' +
+        '\u201Ccounts as someone else\u201D.</p></div>';
+      return;
+    }
+
     var chosen = Object.keys(profileGroups).filter(function (k) {
       return profileGroups[k] && state.profileByName[k];
     });
@@ -1074,15 +1102,28 @@
 
     var tracked = yes.map(function (v) { return labelOf(name, v); }).join(', ');
 
+    var lo = Math.max(0, overall.p - overall.moe), hi = Math.min(1, overall.p + overall.moe);
+
     var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>' +
-      '<p class="headline"><span class="big">' + Stats.pct(overall.p) + '</span> of everyone ' +
-      'answered ' + escapeHTML(tracked) + ', \u00B1' + (100 * overall.moe).toFixed(1) + ' points.</p>' +
+      '<p class="headline"><span class="big">' + Stats.pct(overall.p) + '</span> of the ' +
+      fmt(overall.n) + ' people who answered this question chose ' +
+      '\u201C' + escapeHTML(tracked) + '\u201D.</p>' +
+
+      '<p class="read-this"><b>How to read this.</b> Every dot is one group of people, and ' +
+      'its position is the share of that group who chose \u201C' + escapeHTML(tracked) +
+      '\u201D. The dashed line is everyone together, at ' + Stats.pct(overall.p, 0) + '. ' +
+      'The line through each dot is how much room for error there is: this survey puts the ' +
+      'true whole-country figure somewhere between ' + Stats.pct(lo, 0) + ' and ' +
+      Stats.pct(hi, 0) + ', not exactly at ' + Stats.pct(overall.p, 0) + '.<br><br>' +
+      '<b>Colored dots are the real differences.</b> A hollow grey dot sits close enough to ' +
+      'the dashed line that this survey cannot tell that group apart from everyone else. ' +
+      'Writing about a hollow dot means writing about noise.</p>' +
+
       '<div class="chart" id="profile-chart"></div>' +
       '<p style="margin:14px 0 0;color:var(--slate);font-size:12.5px;max-width:72ch">' +
-      'A group whose interval overlaps the whole-sample line is drawn hollow: this survey ' +
-      'cannot tell it apart from the average, and a difference read off those dots would not ' +
-      'hold up. Groups with fewer than 25 cases are left out rather than plotted with an ' +
-      'interval too wide to mean anything.</p>' +
+      'Smaller groups get wider error lines, because there is less to go on. Groups with ' +
+      'fewer than 25 people are left out rather than drawn with a line too wide to mean ' +
+      'anything.</p>' +
       '<div class="figure-actions"><button class="secondary" id="profile-dl">Save figure as SVG</button></div>' +
       '</div>';
 
@@ -1090,7 +1131,7 @@
 
     var svg = Charts.profilePlot($('profile-chart'), panels, overall.p, {
       labelWidth: 176,
-      axisLabel: 'percent answering ' + tracked
+      axisLabel: 'share of each group who chose \u201C' + tracked + '\u201D'
     });
     $('profile-dl').addEventListener('click', function () {
       Charts.downloadSVG(svg, 'profile_' + name + '.svg');
@@ -1279,13 +1320,22 @@
    * panel exists to avoid. */
   function guessRole(value, varName) {
     var score = CSV.scaleScore(varName ? labelOf(varName, value) : value);
+
     // A refusal counts as an answer in the denominator unless the Codebook
     // switch says otherwise, which is what reproduces Pew's published
     // figures. It is never the answer being tracked.
     if (score === 100) return state.excludeRefusals ? 'drop' : 'no';
-    if (score === null) return 'drop';
+
+    // Everything else is a real answer somebody gave, so it belongs in the
+    // denominator. An answer that cannot be read as support is "not the
+    // tracked answer", never "excluded".
+    //
+    // Defaulting these to excluded is wrong in a way that hides itself: mark
+    // one answer as tracked, and the denominator becomes only that answer, so
+    // the percentage comes out near 100 and looks like a finding. Excluding
+    // an answer has to be something a person chooses on purpose.
+    if (score === null) return 'no';
     if (score < 0) return 'yes';
-    if (score === 0) return 'drop';
     return 'no';
   }
 
@@ -1306,9 +1356,11 @@
     if (!a || !b) { target.innerHTML = ''; return; }
 
     var html = '<div class="card"><h3>Which answers count as support</h3>' +
-      '<p class="role-legend">Each response option has to be sorted into supports, does not support, ' +
-      'or excluded from the base. The starting guesses below come from matching the text of each ' +
-      'option; check them against the questionnaire, because a reversed scale will invert the result.</p>' +
+      '<p class="role-legend">Each response option is either the answer being counted or ' +
+      'someone else in the total. Excluding an option removes those people from the ' +
+      'denominator altogether, which is occasionally right and usually not. The starting ' +
+      'guesses come from the wording of each option; check them against the questionnaire, ' +
+      'because a reversed scale will invert the result.</p>' +
       ((!hasLabels(a) || !hasLabels(b))
         ? '<div class="notice"><p>One of these variables is still bare numeric codes, so nothing ' +
           'can be guessed and every option starts excluded. Add labels for it in the Codebook tab ' +

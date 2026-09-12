@@ -37,17 +37,17 @@
    * through the greens and opposition through warm earth tones. That pair
    * separates on the blue-yellow axis and stays legible under deuteranopia
    * and protanopia. */
-  --c-support-1: #08535E;   /* deep teal */
-  --c-support-2: #3FAFB5;   /* bright aqua */
+  --c-support-1: #07626E;   /* deep teal */
+  --c-support-2: #2FC2C9;   /* bright aqua */
   --c-middle: #CBD4D0;
-  --c-oppose-2: #F4B434;    /* gold */
-  --c-oppose-1: #CE5A17;    /* burnt orange */
+  --c-oppose-2: #FFC233;    /* gold */
+  --c-oppose-1: #E4620C;    /* vivid orange */
 
-  --c-series-a: #0A6B74;
-  --c-series-b: #CE5A17;
+  --c-series-a: #0A7E8A;
+  --c-series-b: #E4620C;
   --c-neutral: #B7C6C0;
-  --c-positive: #0E8C8C;
-  --c-negative: #CE5A17;
+  --c-positive: #0FA3AC;    /* the dots that read as above average */
+  --c-negative: #F2700F;    /* and below */
 
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-text: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
@@ -713,3 +713,28 @@ table.data caption { max-width: 74ch; line-height: 1.45; }
 .find-meta { display: block; font-size: 10.5px; color: var(--slate); font-family: var(--font-code); }
 
 .find-none { font-size: 12px; color: var(--slate); padding: 6px 0; font-style: italic; }
+
+.cat-row.role-yes {
+  border-left-color: var(--c-positive);
+  background: #E8F6F7;
+}
+.cat-row.role-drop { opacity: 0.6; }
+
+.base-line {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--slate);
+  padding-top: 10px;
+  border-top: 1px solid var(--grid);
+}
+.base-line b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.read-this {
+  margin: 0 0 16px;
+  padding: 10px 13px;
+  background: var(--teal-wash);
+  border-left: 3px solid var(--c-positive);
+  font-size: 13px;
+  line-height: 1.55;
+  max-width: 74ch;
+}

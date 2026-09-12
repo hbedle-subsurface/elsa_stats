@@ -114,6 +114,17 @@ The splits it shows are the chips under "Break out by." Click the &times; on
 one to drop it, click a suggestion to add one, or search for anything else in
 the survey to split by instead.
 
+**Choosing the answer to count.** Under the question you will see every
+possible answer with a dropdown. Set the one you care about to *count these
+people*. Leave the rest as *counts as someone else* — they stay in the total,
+which is what makes the percentage mean something.
+
+*Leave these people out* is for refusals and questions that did not apply. If
+you leave everything out except the answer you are counting, the percentage
+becomes "out of the people who said X, how many said X", which is always near
+100% and never a finding. The tool now tells you the exact total it is dividing
+by, right under the dropdowns. Read that line before you trust a number.
+
 One feature is worth understanding before you read the picture. Each group is
 a dot. Some dots are solid colored and some are hollow grey. **A hollow dot
 means the survey cannot actually tell that group apart from the average.**
