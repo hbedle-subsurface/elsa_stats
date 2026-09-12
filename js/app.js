@@ -98,7 +98,7 @@
 
   // ================================================================= tabs
 
-  var TABS = ['load', 'codebook', 'item', 'profile', 'cross', 'gap', 'model'];
+  var TABS = ['load', 'codebook', 'item', 'battery', 'profile', 'cross', 'gap', 'model'];
 
   function showTab(key) {
     TABS.forEach(function (t) {
@@ -115,6 +115,7 @@
       showTab(t);
       if (t === 'codebook') renderCodebook();
       if (t === 'item') renderItem();
+      if (t === 'battery') renderBatterySetup();
       if (t === 'profile') renderProfileSetup();
       if (t === 'cross') renderCross();
       if (t === 'gap') renderGap();
@@ -123,7 +124,7 @@
   });
 
   function enableAnalysisTabs(on) {
-    ['codebook', 'item', 'profile', 'cross', 'gap', 'model'].forEach(function (t) {
+    ['codebook', 'item', 'battery', 'profile', 'cross', 'gap', 'model'].forEach(function (t) {
       $('tab-' + t).disabled = !on;
     });
   }
@@ -249,6 +250,7 @@
       });
     });
     state.detectedRefusals = Object.keys(detected);
+    state._batteries = null;
   }
 
   function finishLoad() {
@@ -381,6 +383,7 @@
    * what makes a search work. */
   function clearHaystacks() {
     state.profiles.forEach(function (p) { delete p._haystack; });
+    state._batteries = null;
   }
 
   function matchesQuery(p, q) {
@@ -830,6 +833,35 @@
     renderItem();
   });
 
+  /* The wording that produced the numbers, shown next to them. A percentage
+   * cannot be read without it: "45% said not too much" means nothing until
+   * you know the question was about common ground between the parties. */
+  function questionBlock(name, cats) {
+    var q = varQuestion(name);
+    var html = '<div class="question-block">';
+
+    if (q) {
+      html += '<p class="question-text">' + escapeHTML(q) + '</p>';
+    } else {
+      html += '<p class="question-text is-missing">No question wording in this file. ' +
+        'Load the survey\u2019s <code>.sav</code>, or check the questionnaire PDF for ' +
+        '<code>' + escapeHTML(name) + '</code>.</p>';
+    }
+
+    var opts = (cats || (state.profileByName[name] || {}).values || []);
+    if (opts.length && opts.length <= 14) {
+      html += '<p class="question-options"><span class="qo-label">People could answer:</span> ' +
+        opts.map(function (c) {
+          var v = c.value;
+          return '<span class="qo">' + escapeHTML(labelOf(name, v)) +
+            '<span class="qo-code">' + escapeHTML(String(v)) + '</span></span>';
+        }).join('') + '</p>';
+    }
+
+    html += '<p class="question-var">variable <code>' + escapeHTML(name) + '</code></p>';
+    return html + '</div>';
+  }
+
   function renderItem() {
     var name = $('item-select').value;
     var body = $('item-body');
@@ -846,7 +878,8 @@
     var maxShift = 0;
     cats.forEach(function (c) { maxShift = Math.max(maxShift, Math.abs(c.pW - c.pU)); });
 
-    var html = '<div class="card"><h3>' + escapeHTML(name) + '</h3>';
+    var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>' +
+      questionBlock(name, cats);
 
     // For an ordered scale, the number that normally gets reported is the
     // two supporting categories combined.
@@ -904,7 +937,223 @@
   }
 
 
+
+  // ====================================================== compare questions
+
+  /* Find sets of questions that were asked together.
+   *
+   * A grid question in a Pew file shares one stem across several variables:
+   * ENV2_a through ENV2_f all hang off "Do you favor or oppose expanding each
+   * of the following...". The dictionary stores that as "stem - item", so
+   * grouping on the stem recovers the set. Where there is no wording, the
+   * name prefix before the last underscore-letter does the same job. */
+  function detectBatteries() {
+    if (state._batteries) return state._batteries;
+
+    var groups = {};
+    analysisVars().forEach(function (p) {
+      if (p.distinct > 12) return;
+      var q = varQuestion(p.name);
+      var key = null, title = null;
+
+      if (q && q.indexOf('\u2014') !== -1) {
+        key = 'stem:' + q.split('\u2014')[0].trim().toLowerCase();
+        title = q.split('\u2014')[0].trim();
+      } else {
+        var m = p.name.match(/^(.*?)_([a-z]|[A-Z]{1,4}|\d{1,2})(_W\d+)?$/);
+        if (m && m[1].length > 2) {
+          key = 'name:' + m[1];
+          title = m[1];
+        }
+      }
+      if (!key) return;
+      if (!groups[key]) groups[key] = { title: title, items: [] };
+      groups[key].items.push(p);
+    });
+
+    var out = Object.keys(groups).map(function (k) { return groups[k]; })
+      .filter(function (g) {
+        if (g.items.length < 2) return false;
+        // every item has to share the same answer options, or they cannot
+        // sit on one axis honestly
+        var first = g.items[0].values.map(function (v) { return String(v.value); }).sort().join('|');
+        return g.items.every(function (p) {
+          return p.values.map(function (v) { return String(v.value); }).sort().join('|') === first;
+        });
+      })
+      .sort(function (a, b) { return b.items.length - a.items.length; });
+
+    state._batteries = out;
+    return out;
+  }
+
+  function renderBatterySetup() {
+    if (!state.rows.length) return;
+    var sets = detectBatteries();
+    var sel = $('battery-set');
+
+    if (!sets.length) {
+      $('battery-body').innerHTML = '<p class="empty-state">No sets of questions sharing ' +
+        'the same answers were found in this file.</p>';
+      return;
+    }
+
+    if (sel.options.length !== sets.length) {
+      sel.innerHTML = '';
+      sets.forEach(function (g, i) {
+        var o = document.createElement('option');
+        o.value = String(i);
+        var t = g.title.length > 72 ? g.title.slice(0, 69) + '\u2026' : g.title;
+        o.textContent = t + '  (' + g.items.length + ' questions)';
+        sel.appendChild(o);
+      });
+      fillSelect($('battery-group'), analysisVars().filter(function (p) {
+        return p.distinct >= 2 && p.distinct <= 6;
+      }), true, '\u2014 everyone together \u2014');
+    }
+
+    renderBatteryRoles();
+    renderBattery();
+  }
+
+  $('battery-set').addEventListener('change', function () {
+    renderBatteryRoles();
+    renderBattery();
+  });
+  $('battery-group').addEventListener('change', renderBattery);
+
+  function currentBattery() {
+    var sets = detectBatteries();
+    var ix = parseInt($('battery-set').value, 10);
+    return sets[isFinite(ix) ? ix : 0];
+  }
+
+  /* Items in a set share a scale, so one choice of answer applies to all of
+   * them. The roles are held against the first item and copied across. */
+  function renderBatteryRoles() {
+    var g = currentBattery();
+    var target = $('battery-roles');
+    if (!g) { target.innerHTML = ''; return; }
+
+    var lead = g.items[0];
+    ensureRoles(lead.name);
+
+    var counted = 0, inBase = 0, left = 0;
+    var html = '<div class="card"><h3>Which answer to count</h3>' +
+      '<p class="question-text" style="margin:0 0 12px">' +
+      escapeHTML(g.title) + '</p>' +
+      '<p class="role-legend">All ' + g.items.length + ' questions in this set share these ' +
+      'answers, so this choice applies to every one of them.</p><div class="cat-editor">';
+
+    lead.values.forEach(function (v) {
+      var role = state.roles[lead.name][v.value] || 'no';
+      if (role === 'yes') { counted++; inBase++; } else if (role === 'no') { inBase++; } else { left++; }
+      html += '<div class="cat-row role-' + role + '"><span class="cat-value">' +
+        escapeHTML(showValue(lead.name, v.value)) + '</span>' +
+        '<span class="cat-n">' + fmt(v.n) + '</span>' +
+        '<select data-bvar="' + escapeHTML(v.value) + '">' +
+        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>\u25CF count these people</option>' +
+        '<option value="no"' + (role === 'no' ? ' selected' : '') + '>counts as someone else</option>' +
+        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>leave these people out</option>' +
+        '</select></div>';
+    });
+    html += '</div></div>';
+    target.innerHTML = html;
+
+    target.querySelectorAll('select').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        state.roles[lead.name][this.getAttribute('data-bvar')] = this.value;
+        renderBatteryRoles();
+        renderBattery();
+      });
+    });
+  }
+
+  function renderBattery() {
+    var g = currentBattery();
+    var body = $('battery-body');
+    if (!g) return;
+
+    var lead = g.items[0];
+    ensureRoles(lead.name);
+    var yes = yesList(lead.name), drop = dropList(lead.name);
+
+    if (!yes.length) {
+      body.innerHTML = '<div class="notice"><p>Choose the answer you want to count.</p></div>';
+      return;
+    }
+    if (yes.length + drop.length >= lead.values.length) {
+      body.innerHTML = '<div class="notice"><p>Every other answer is set to be left out, ' +
+        'so each percentage would come out near 100 and mean nothing. Set the answers you ' +
+        'are comparing against to \u201Ccounts as someone else\u201D.</p></div>';
+      return;
+    }
+
+    var missing = missingSet().concat(drop);
+    var gv = $('battery-group').value;
+    var groupLevels = [];
+    if (gv && state.profileByName[gv]) {
+      groupLevels = state.profileByName[gv].values
+        .filter(function (v) { return state.detectedRefusals.indexOf(String(v.value)) === -1; })
+        .slice(0, 4);
+    }
+
+    var rows = [];
+    g.items.forEach(function (p) {
+      var series = [];
+      if (groupLevels.length) {
+        groupLevels.forEach(function (lv) {
+          var subset = state.rows.filter(function (r) { return String(r[gv]) === String(lv.value); });
+          var cp = Stats.collapsedProportion(subset, p.name, yes, state.weightVar, missing);
+          if (cp && cp.n >= 25) {
+            series.push({ name: labelOf(gv, lv.value), p: cp.p, moe: cp.moe, n: cp.n });
+          }
+        });
+        if (series.length !== groupLevels.length) return;
+      } else {
+        var cp2 = Stats.collapsedProportion(state.rows, p.name, yes, state.weightVar, missing);
+        if (!cp2) return;
+        series.push({ name: 'everyone', p: cp2.p, moe: cp2.moe, n: cp2.n });
+      }
+      rows.push({ label: varLabel(p.name), name: p.name, series: series });
+    });
+
+    if (!rows.length) { body.innerHTML = '<p class="empty-state">Nothing to draw.</p>'; return; }
+
+    // rank by the first series so the chart reads top to bottom
+    rows.sort(function (a, b) { return b.series[0].p - a.series[0].p; });
+
+    var tracked = yes.map(function (v) { return labelOf(lead.name, v); }).join(' or ');
+    var top = rows[0], bottom = rows[rows.length - 1];
+
+    var html = '<div class="card"><h3>' + escapeHTML(g.title) + '</h3>' +
+      '<p class="headline">Ranked by how many chose \u201C' + escapeHTML(tracked) + '\u201D. ' +
+      '<b>' + escapeHTML(top.label) + '</b> comes top at ' + Stats.pct(top.series[0].p, 0) +
+      '; <b>' + escapeHTML(bottom.label) + '</b> is last at ' +
+      Stats.pct(bottom.series[0].p, 0) + '.</p>' +
+      (groupLevels.length
+        ? '<p class="read-this">Each row is one question and each dot is one group. Where the ' +
+          'dots sit on top of each other the groups agree; where they spread out, they do not. ' +
+          'The faint line through each dot is its margin of error, so dots whose lines overlap ' +
+          'are not far enough apart to call a difference.</p>'
+        : '') +
+      '<div class="chart" id="battery-chart"></div>' +
+      '<div class="figure-actions"><button class="secondary" id="battery-dl">Save figure as SVG</button></div>' +
+      '</div>';
+
+    body.innerHTML = html;
+
+    var svg = Charts.batteryPlot($('battery-chart'), rows, {
+      labelWidth: 240,
+      axisLabel: 'percent choosing \u201C' + tracked + '\u201D'
+    });
+    $('battery-dl').addEventListener('click', function () {
+      Charts.downloadSVG(svg, 'compare_' + (g.items[0].name || 'battery') + '.svg');
+    });
+  }
+
   // ============================================================== profile
+
 
   var profileGroups = {};   // variable name -> included?
 
@@ -935,12 +1184,8 @@
     ensureRoles(name);
     var p = state.profileByName[name];
 
-    var q = varQuestion(name);
-    var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>';
-    if (q) {
-      html += '<p style="margin:-4px 0 14px;color:var(--slate);font-family:var(--font-text);' +
-        'font-size:13.5px;max-width:72ch">' + escapeHTML(q) + '</p>';
-    }
+    var html = '<div class="card"><h3>' + escapeHTML(varLabel(name)) + '</h3>' +
+      questionBlock(name, p.values);
     html += '<p class="role-legend">Pick the answer you want to count. Everyone else stays ' +
       'in the total, so the percentage means \u201Cout of everyone who answered this ' +
       'question, how many chose that\u201D.</p><div class="cat-editor">';

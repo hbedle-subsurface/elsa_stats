@@ -775,6 +775,130 @@
     return svg;
   }
 
+  // ------------------------------------------------ question battery plot
+
+  /* Several questions that share a response scale, drawn on one axis so they
+   * can be read against each other. This is the shape most published survey
+   * charts take, because ranking items answers "which of these worries people
+   * most" in a single glance.
+   *
+   * items: [{label, series:[{name, p, moe, n}]}]
+   * One series per item draws bars; several draw a dot per series so groups
+   * can be compared item by item.
+   */
+  function batteryPlot(container, items, opts) {
+    opts = opts || {};
+    container.innerHTML = '';
+    var P = palette();
+
+    var nSeries = items.length ? items[0].series.length : 1;
+    var multi = nSeries > 1;
+
+    var labelW = opts.labelWidth || 230;
+    var rowH = multi ? 15 * nSeries + 16 : 26;
+    var gap = multi ? 12 : 8;
+    var padTop = multi ? 26 : 10, padBottom = 48, padRight = 104;
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
+    var H = padTop + items.length * (rowH + gap) + padBottom;
+    var svg = svgRoot(W, H);
+
+    // a blue-to-green ramp keeps series apart by lightness as well as hue
+    var seriesColors = [];
+    for (var s = 0; s < nSeries; s++) {
+      seriesColors.push(nSeries === 1 ? P.support[0]
+        : mix(P.support[0], P.oppose[1], s / (nSeries - 1)));
+    }
+
+    gridlines(svg, plotX0, plotX1, padTop - 4, padTop + items.length * (rowH + gap) - gap);
+    function X(p) { return plotX0 + (plotX1 - plotX0) * p; }
+
+    if (multi) {
+      var keyX = plotX0;
+      items[0].series.forEach(function (sr, i) {
+        svg.appendChild(el('circle', { cx: keyX + 4, cy: 9, r: 4.5, fill: seriesColors[i] }));
+        svg.appendChild(el('text', {
+          x: keyX + 13, y: 12.5, 'font-size': 10.5, fill: 'var(--slate)'
+        }, sr.name));
+        keyX += 26 + String(sr.name).length * 5.6;
+      });
+    }
+
+    items.forEach(function (it, ix) {
+      var top = padTop + ix * (rowH + gap);
+
+      // wrap a long item label onto two lines rather than clipping it
+      var lines = wrapLabel(it.label, 30);
+      lines.slice(0, 2).forEach(function (line, li) {
+        svg.appendChild(el('text', {
+          x: labelW - 12, y: top + rowH / 2 + 4 - (lines.length > 1 ? 6 : 0) + li * 13,
+          'text-anchor': 'end', 'font-size': 12, fill: 'var(--ink)'
+        }, line + (li === 1 && lines.length > 2 ? '\u2026' : '')));
+      });
+
+      it.series.forEach(function (sr, si) {
+        var cy = multi
+          ? top + 10 + si * 15
+          : top + rowH / 2;
+
+        if (!multi) {
+          var bar = el('rect', {
+            x: plotX0, y: top + 4, width: Math.max(0, X(sr.p) - plotX0), height: rowH - 8,
+            fill: seriesColors[0]
+          });
+          bar.appendChild(el('title', {}, it.label + ': ' + (100 * sr.p).toFixed(1) + '%'));
+          svg.appendChild(bar);
+        }
+
+        if (isFinite(sr.moe) && sr.moe > 0) {
+          svg.appendChild(el('line', {
+            x1: X(Math.max(0, sr.p - sr.moe)), x2: X(Math.min(1, sr.p + sr.moe)),
+            y1: cy, y2: cy, stroke: multi ? seriesColors[si] : 'var(--ink)',
+            'stroke-width': multi ? 1.5 : 1.25, opacity: multi ? 0.5 : 1
+          }));
+        }
+
+        if (multi) {
+          var dot = el('circle', {
+            cx: X(sr.p), cy: cy, r: 5, fill: seriesColors[si]
+          });
+          dot.appendChild(el('title', {},
+            it.label + ' \u2014 ' + sr.name + ': ' + (100 * sr.p).toFixed(1) +
+            '% (n=' + sr.n + ')'));
+          svg.appendChild(dot);
+        } else {
+          svg.appendChild(el('text', {
+            x: plotX1 + 8, y: cy + 4, 'font-size': 12, fill: 'var(--ink)',
+            'font-variant-numeric': 'tabular-nums'
+          }, (100 * sr.p).toFixed(0) + '%'));
+          svg.appendChild(el('text', {
+            x: plotX1 + 44, y: cy + 4, 'font-size': 10, fill: 'var(--slate)',
+            'font-variant-numeric': 'tabular-nums'
+          }, '\u00B1' + (100 * sr.moe).toFixed(1)));
+        }
+      });
+    });
+
+    var axisY = padTop + items.length * (rowH + gap) - gap;
+    percentAxis(svg, plotX0, plotX1, axisY);
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: axisY + 36, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'percent'));
+
+    container.appendChild(svg);
+    return svg;
+  }
+
+  function wrapLabel(text, maxChars) {
+    var words = String(text).split(/\s+/), lines = [], line = '';
+    words.forEach(function (w) {
+      if ((line + ' ' + w).trim().length > maxChars && line) { lines.push(line); line = w; }
+      else line = (line + ' ' + w).trim();
+    });
+    if (line) lines.push(line);
+    return lines;
+  }
+
   // -------------------------------------------------------------- download
 
   function downloadSVG(svg, filename) {
@@ -806,6 +930,7 @@
     divergingBars: divergingBars,
     coefficientPlot: coefficientPlot,
     profilePlot: profilePlot,
+    batteryPlot: batteryPlot,
     adjustedPlot: adjustedPlot,
     gapPlot: gapPlot,
     barsWithCI: barsWithCI,

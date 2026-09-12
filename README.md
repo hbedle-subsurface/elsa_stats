@@ -71,7 +71,7 @@ there is no server behind this, and no one can see what you are looking at.
 That also means a survey you have not published yet — your own, or one shared
 with you in confidence — is safe to open here.
 
-There are seven tabs, meant to be used roughly in order. Once you pick a
+There are eight tabs, meant to be used roughly in order. Once you pick a
 question on one of them, the others stay on that same question, so you can
 look at it several ways without hunting for it again. Every question menu has
 a filter box above it — type `solar` and only the solar questions remain.
@@ -97,7 +97,10 @@ your figures will match theirs.
 
 ### One item
 
-Pick a question and see how everyone answered it.
+Pick a question and see how everyone answered it. The exact wording and every
+answer option people could choose are shown above the numbers, because a
+percentage means nothing without them: "45% said not too much" is meaningless
+until you know the question was about common ground between the parties.
 
 This screen shows two columns of percentages side by side: the raw count, and
 the count after weighting. Look at the gap between them. That gap is the
@@ -113,6 +116,23 @@ question that mentions solar anywhere in its wording. Type `solar local` and
 you get only the ones about both.
 
 Click any result and it opens on whatever screen you are on.
+
+### Compare questions
+
+Surveys usually ask the same thing about a list of items: six energy sources,
+sixteen national problems, four things a solar farm might do. Those belong on
+one chart together, ranked, and this screen finds those sets automatically and
+draws them.
+
+Choose which answer to count and every question in the set lands on the same
+scale, so you can see which one people pick most. Add a group and each row
+gets a dot per group, which is where the interesting things usually show up.
+Asking the Wave 148 energy list by party, for instance, shows Republicans and
+Democrats in almost exactly opposite orders — Republicans rank offshore
+drilling top and wind last, Democrats the reverse.
+
+If two dots sit on top of each other the groups agree. If their error lines
+overlap, they are not far enough apart to call a difference.
 
 ### Who answers how
 

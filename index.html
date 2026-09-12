@@ -57,6 +57,7 @@
       <button class="tab" role="tab" id="tab-load" aria-controls="panel-load" aria-selected="true">Load data</button>
       <button class="tab" role="tab" id="tab-codebook" aria-controls="panel-codebook" aria-selected="false" disabled>Codebook</button>
       <button class="tab" role="tab" id="tab-item" aria-controls="panel-item" aria-selected="false" disabled>One item</button>
+      <button class="tab" role="tab" id="tab-battery" aria-controls="panel-battery" aria-selected="false" disabled>Compare questions</button>
       <button class="tab" role="tab" id="tab-profile" aria-controls="panel-profile" aria-selected="false" disabled>Who answers how</button>
       <button class="tab" role="tab" id="tab-cross" aria-controls="panel-cross" aria-selected="false" disabled>Crosstab</button>
       <button class="tab" role="tab" id="tab-gap" aria-controls="panel-gap" aria-selected="false" disabled>General vs. local</button>
@@ -149,6 +150,39 @@
       </div>
 
       <div id="item-body"></div>
+    </section>
+
+    <!-- ---------------------------------------------------------- battery -->
+    <section class="panel" role="tabpanel" id="panel-battery" aria-labelledby="tab-battery" hidden>
+      <h2>Compare questions</h2>
+      <p class="lede">
+        Surveys often ask the same thing about a list of items &mdash; six energy
+        sources, a dozen national problems, four things a solar farm might do.
+        Those belong on one chart together, ranked. This is the chart most
+        published survey findings take.
+      </p>
+
+      <div class="read-this">
+        <b>What this does.</b> Pick a set of questions that share the same
+        answers, choose which answer to count, and every item is drawn on the
+        same scale so you can see which one people pick most. Add a group and
+        each item gets a dot per group instead, so you can see where the groups
+        agree and where they split.
+      </div>
+
+      <div class="controls">
+        <div class="field">
+          <label for="battery-set">Set of questions</label>
+          <select id="battery-set"></select>
+        </div>
+        <div class="field">
+          <label for="battery-group">Compare groups (optional)</label>
+          <select id="battery-group"></select>
+        </div>
+      </div>
+
+      <div id="battery-roles"></div>
+      <div id="battery-body"></div>
     </section>
 
     <!-- ---------------------------------------------------------- profile -->

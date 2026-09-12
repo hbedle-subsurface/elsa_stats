@@ -796,3 +796,49 @@ table.data caption { max-width: 74ch; line-height: 1.45; }
 .picker select { width: 100%; max-width: none; }
 
 .picker-count { font-size: 11.5px; color: var(--slate); margin-top: 3px; }
+
+/* --------------------------------------------- the question behind a chart */
+
+.question-block {
+  margin: -4px 0 18px;
+  padding: 12px 14px;
+  background: var(--fill-alt);
+  border-left: 3px solid var(--c-support-2);
+}
+
+.question-text {
+  margin: 0;
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 74ch;
+}
+
+.question-text.is-missing { font-style: italic; color: var(--slate); font-size: 13.5px; }
+
+.question-options {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: var(--slate);
+  line-height: 2.1;
+}
+
+.qo-label { margin-right: 4px; }
+
+.qo {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  padding: 2px 7px;
+  margin-right: 5px;
+  color: var(--ink);
+  font-size: 12.5px;
+}
+
+.qo-code { font-family: var(--font-code); font-size: 10.5px; color: var(--slate); }
+
+.question-var { margin: 10px 0 0; font-size: 11.5px; color: var(--slate); }
+.question-var code { font-size: 11.5px; }
