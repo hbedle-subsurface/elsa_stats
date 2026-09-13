@@ -19,6 +19,8 @@
     roles: {},
     // value labels: name -> {code: label}
     labels: {},
+    // combined categories: name -> {code: 'group name'}
+    merges: {},
     // question text: name -> {short, question}
     questions: {},
     // whether refusal codes are excluded from percentage bases
@@ -234,6 +236,7 @@
     state.profiles.forEach(function (p) { state.profileByName[p.name] = p; });
     state.labels = {};
     state.questions = {};
+    state.merges = {};
     state.roles = {};
     state.missingCodes = [];
     state.excludeRefusals = false;
@@ -1010,6 +1013,10 @@
       fillSelect($('battery-group'), analysisVars().filter(function (p) {
         return p.distinct >= 2 && p.distinct <= 6;
       }), true, '\u2014 everyone together \u2014');
+      if (PICKERS.indexOf('battery-group') === -1) PICKERS.push('battery-group');
+      pickerWired = false;
+      wirePickers();
+      applyPickerFilter('battery-group');
     }
 
     renderBatteryRoles();
@@ -1466,11 +1473,91 @@
   // ============================================================= crosstab
 
 
-  $('cross-row').addEventListener('change', renderCross);
+  $('cross-row').addEventListener('change', function () { renderMergeEditor(); renderCross(); });
   $('cross-col').addEventListener('change', function () {
     syncQuestion(this.value, 'cross-col');
     renderCross();
   });
+
+  function mergeName(varName, value) {
+    var m = state.merges[varName];
+    if (m && m[String(value)]) return m[String(value)];
+    return labelOf(varName, value);
+  }
+
+  function hasMerges(varName) {
+    var m = state.merges[varName];
+    if (!m) return false;
+    var seen = {}, dupe = false;
+    Object.keys(m).forEach(function (k) {
+      if (seen[m[k]]) dupe = true;
+      seen[m[k]] = true;
+    });
+    return dupe;
+  }
+
+  /* Rows with the two crosstab variables replaced by their combined labels,
+   * so the crosstab machinery needs no changes. */
+  function mergedRows(rv, cv) {
+    if (!hasMerges(rv) && !hasMerges(cv)) return null;
+    return state.rows.map(function (r) {
+      var copy = { };
+      copy[rv] = Stats.isMissing(r[rv], missingSet()) ? r[rv] : mergeName(rv, r[rv]);
+      copy[cv] = Stats.isMissing(r[cv], missingSet()) ? r[cv] : mergeName(cv, r[cv]);
+      if (state.weightVar) copy[state.weightVar] = r[state.weightVar];
+      return copy;
+    });
+  }
+
+  function renderMergeEditor() {
+    var rv = $('cross-row').value, cv = $('cross-col').value;
+    var box = $('cross-merge');
+    if (!box || !rv || !cv) { if (box) box.innerHTML = ''; return; }
+
+    var html = '<details class="tool-details"><summary>Combine categories ' +
+      '(fold answers together, for example four scale points into two)</summary>' +
+      '<p class="role-legend">Give two categories the same name and they become one row or ' +
+      'column. Useful when a category has too few people to stand alone, or when the ' +
+      'four-point scale really only needs to be favor against oppose. The underlying data is ' +
+      'untouched; only this table changes.</p>';
+
+    [[rv, 'Rows'], [cv, 'Columns']].forEach(function (pair) {
+      var name = pair[0], p = state.profileByName[name];
+      if (!p || p.values.length > 14) return;
+      html += '<p style="margin:12px 0 2px;font-size:12px;color:var(--slate)"><b>' +
+        escapeHTML(pair[1]) + ':</b> ' + escapeHTML(varLabel(name)) + '</p>' +
+        '<div class="merge-grid">';
+      p.values.forEach(function (v) {
+        var to = mergeName(name, v.value);
+        var merged = to !== labelOf(name, v.value);
+        html += '<div class="merge-row' + (merged ? ' is-merged' : '') + '">' +
+          '<span class="m-from">' + escapeHTML(labelOf(name, v.value)) + '</span>' +
+          '<span class="m-n">' + fmt(v.n) + '</span>' +
+          '<input type="text" data-mvar="' + escapeHTML(name) + '" data-mval="' +
+          escapeHTML(v.value) + '" value="' + escapeHTML(to) + '"></div>';
+      });
+      html += '</div>';
+    });
+
+    html += '<button class="secondary" id="merge-reset" style="margin-top:10px">' +
+      'Undo all combining</button></details>';
+    box.innerHTML = html;
+
+    box.querySelectorAll('input[data-mvar]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var v = this.getAttribute('data-mvar');
+        if (!state.merges[v]) state.merges[v] = {};
+        state.merges[v][this.getAttribute('data-mval')] = this.value.trim() ||
+          labelOf(v, this.getAttribute('data-mval'));
+        renderCross();
+      });
+    });
+    $('merge-reset').addEventListener('click', function () {
+      delete state.merges[rv];
+      delete state.merges[cv];
+      renderCross();
+    });
+  }
 
   function renderCross() {
     var rv = $('cross-row').value, cv = $('cross-col').value;
@@ -1481,21 +1568,28 @@
       return;
     }
 
-    var ct = Stats.crosstab(state.rows, rv, cv, state.weightVar, missingSet());
+    renderMergeEditor();
+    var source = mergedRows(rv, cv) || state.rows;
+    var ct = Stats.crosstab(source, rv, cv, state.weightVar, missingSet());
+    var merged = !!mergedRows(rv, cv);
     if (!ct.rowKeys.length || !ct.colKeys.length) {
       body.innerHTML = '<p class="empty-state">No cases answered both variables.</p>';
       return;
     }
     permuteCrosstab(ct);
 
-    var html = '<div class="card"><h3>' + escapeHTML(cv) + ' by ' + escapeHTML(rv) + '</h3>';
+    var html = '<div class="card"><h3>' + escapeHTML(varLabel(cv)) + ' by ' +
+      escapeHTML(varLabel(rv)) + '</h3>' + questionBlock(cv, null) +
+      (merged ? '<p class="role-legend">Some categories have been combined for this table.</p>' : '');
     html += '<table class="data"><caption>Weighted row percentages. Each row sums to 100%.</caption><thead><tr><th>' +
       escapeHTML(rv) + '</th>';
-    ct.colKeys.forEach(function (k) { html += '<th>' + escapeHTML(showValue(cv, k)) + '</th>'; });
+    ct.colKeys.forEach(function (k) {
+      html += '<th>' + escapeHTML(merged ? k : showValue(cv, k)) + '</th>';
+    });
     html += '<th class="moe">cases</th></tr></thead><tbody>';
 
     ct.rowKeys.forEach(function (rk, i) {
-      html += '<tr><td>' + escapeHTML(showValue(rv, rk)) + '</td>';
+      html += '<tr><td>' + escapeHTML(merged ? rk : showValue(rv, rk)) + '</td>';
       ct.rowPct[i].forEach(function (cell) {
         html += '<td>' + Stats.pct(cell.p, 0) + '</td>';
       });
@@ -1551,9 +1645,9 @@
     // small multiples: one stacked row per group
     var series = ct.rowKeys.map(function (rk, i) {
       return {
-        label: showValue(rv, rk) + '  (n=' + ct.rowTotalsN[i] + ')',
+        label: (merged ? rk : showValue(rv, rk)) + '  (n=' + ct.rowTotalsN[i] + ')',
         segments: ct.colKeys.map(function (ck, j) {
-          return { name: showValue(cv, ck), p: ct.rowPct[i][j].p };
+          return { name: merged ? ck : showValue(cv, ck), p: ct.rowPct[i][j].p };
         })
       };
     });
@@ -1586,7 +1680,16 @@
     function orderOf(varName, keys) {
       var p = state.profileByName[varName];
       var rank = {};
-      if (p) p.values.forEach(function (v, ix) { rank[v.value] = ix; });
+      // Rank by the raw code and by the display name both, because once any
+      // combining is switched on the table's keys are names rather than
+      // codes, and each name should sort where its earliest code did.
+      if (p) {
+        p.values.forEach(function (v, ix) {
+          if (rank[v.value] === undefined) rank[v.value] = ix;
+          var nm = mergeName(varName, v.value);
+          if (rank[nm] === undefined) rank[nm] = ix;
+        });
+      }
       return keys.map(function (k, i) { return i; }).sort(function (a, b) {
         var ra = rank[keys[a]], rb = rank[keys[b]];
         if (ra === undefined) ra = 1e6 + a;
@@ -1683,7 +1786,12 @@
     var target = $('gap-categories');
     if (!a || !b) { target.innerHTML = ''; return; }
 
-    var html = '<div class="card"><h3>Which answers count as support</h3>' +
+    var html = '<div class="card"><h3>The two questions being compared</h3>' +
+      '<p style="margin:0 0 4px;font-size:12px;color:var(--slate)"><b>Question A</b></p>' +
+      questionBlock(a, state.profileByName[a].values) +
+      '<p style="margin:0 0 4px;font-size:12px;color:var(--slate)"><b>Question B</b></p>' +
+      questionBlock(b, state.profileByName[b].values) +
+      '</div><div class="card"><h3>Which answers count as support</h3>' +
       '<p class="role-legend">Each response option is either the answer being counted or ' +
       'someone else in the total. Excluding an option removes those people from the ' +
       'denominator altogether, which is occasionally right and usually not. The starting ' +
@@ -2114,11 +2222,18 @@
       var p = state.profileByName[name];
       if (!p) return;
       var asNumeric = p.allNumeric && p.distinct > 8;
+      // A refusal is not a kind of person, so it should not become a
+      // category the model estimates an effect for. Those cases drop out.
+      var levels = p.values.map(function (v) { return v.value; })
+        .filter(function (v) { return state.detectedRefusals.indexOf(String(v)) === -1; });
+      var ref = modelPredictors[name].reference;
+      if (levels.indexOf(ref) === -1) ref = levels[0];
+
       preds.push({
         name: name,
         type: asNumeric ? 'numeric' : 'categorical',
-        levels: p.values.map(function (v) { return v.value; }),
-        reference: modelPredictors[name].reference
+        levels: levels,
+        reference: ref
       });
     });
 
@@ -2137,14 +2252,157 @@
       return;
     }
 
-    renderModelResults(m, outcomeName, preds, kind);
+    renderModelResults(m, outcomeName, preds, kind, modelChecks(m, outcomeName, preds, yes));
   }
 
-  function renderModelResults(m, outcomeName, preds, kind) {
+  /* Things worth knowing before believing a regression. Each one is a real
+   * way a model of survey data goes wrong, checked against this particular
+   * fit rather than described in the abstract. */
+  function modelChecks(m, outcomeName, preds, yes) {
+    var out = [];
+    var kParams = m.coefficients.length - 1;
+
+    // 1. how lopsided the outcome is
+    var rate = m.outcomeMean;
+    var minorityN = Math.round(Math.min(rate, 1 - rate) * m.nEff);
+    if (rate < 0.03 || rate > 0.97) {
+      out.push({ level: 'bad', text: 'Only ' + Stats.pct(Math.min(rate, 1 - rate), 1) +
+        ' of people are on the smaller side of the outcome. With a split this lopsided the ' +
+        'model has almost nothing to learn from and the estimates will be unstable. ' +
+        'Combining answers into a more even split usually fixes it.' });
+    } else if (rate < 0.10 || rate > 0.90) {
+      out.push({ level: 'warn', text: 'The outcome is lopsided: ' +
+        Stats.pct(Math.min(rate, 1 - rate), 1) + ' on the smaller side. Estimates will be ' +
+        'wide, and the intervals matter more than the point estimates here.' });
+    } else {
+      out.push({ level: 'ok', text: 'The outcome splits ' + Stats.pct(rate, 0) + ' to ' +
+        Stats.pct(1 - rate, 0) + ', which is a workable balance.' });
+    }
+
+    // 2. enough cases for the number of things being estimated
+    var perParam = minorityN / Math.max(1, kParams);
+    if (perParam < 10) {
+      out.push({ level: 'bad', text: 'About ' + Math.round(perParam) + ' cases on the smaller ' +
+        'side of the outcome for each thing being estimated. Below roughly 10 the model ' +
+        'starts fitting noise. Drop an independent variable or combine categories.' });
+    } else if (perParam < 20) {
+      out.push({ level: 'warn', text: 'About ' + Math.round(perParam) + ' cases per estimate. ' +
+        'Workable, but this model is close to asking more of the data than it holds.' });
+    } else {
+      out.push({ level: 'ok', text: 'About ' + Math.round(perParam) + ' cases on the smaller ' +
+        'side of the outcome for each thing estimated, which is comfortable.' });
+    }
+
+    // 3. how much was thrown away by listwise deletion
+    var lost = m.dropped / (m.dropped + m.n);
+    if (lost > 0.35) {
+      out.push({ level: 'bad', text: fmt(m.dropped) + ' people (' + Stats.pct(lost, 0) +
+        ') were dropped for missing an answer somewhere. That is enough that the people left ' +
+        'may differ from the people lost. Check which variable is doing it \u2014 a half-sample ' +
+        'question will do this on its own.' });
+    } else if (lost > 0.15) {
+      out.push({ level: 'warn', text: fmt(m.dropped) + ' people (' + Stats.pct(lost, 0) +
+        ') dropped for missing data. Worth saying in the write-up.' });
+    } else {
+      out.push({ level: 'ok', text: 'Only ' + fmt(m.dropped) + ' people dropped for missing ' +
+        'data, so the model is using nearly everyone.' });
+    }
+
+    // 4. thin categories, which produce enormous intervals
+    var thin = [];
+    preds.forEach(function (p) {
+      if (p.type !== 'categorical') return;
+      p.levels.forEach(function (lv) {
+        var n = 0;
+        for (var i = 0; i < state.rows.length; i++) {
+          if (String(state.rows[i][p.name]) === String(lv)) n++;
+        }
+        if (n > 0 && n < 50) thin.push(varLabel(p.name) + ' = ' + showValue(p.name, lv) +
+          ' (' + n + ')');
+      });
+    });
+    if (thin.length) {
+      out.push({ level: 'warn', text: 'Categories with very few people: ' +
+        thin.slice(0, 4).join(', ') + (thin.length > 4 ? ', and others' : '') +
+        '. Their estimates will have intervals too wide to say anything. Fold them into a ' +
+        'neighbouring category.' });
+    } else {
+      out.push({ level: 'ok', text: 'Every category has enough people in it to estimate.' });
+    }
+
+    // 5. two variables carrying the same information
+    var wide = m.coefficients.filter(function (c) {
+      return c.kind !== 'intercept' && isFinite(c.se) && Math.abs(c.se) > 2;
+    });
+    if (wide.length) {
+      out.push({ level: 'warn', text: 'Some estimates have enormous standard errors, which ' +
+        'usually means two independent variables are carrying the same information \u2014 party ' +
+        'and ideology, say, or two versions of education. Remove one of them.' });
+    } else {
+      out.push({ level: 'ok', text: 'No sign of two independent variables duplicating each ' +
+        'other.' });
+    }
+
+    // 6. the survey weight
+    if (!state.weightVar) {
+      out.push({ level: 'bad', text: 'No survey weight is set, so this model describes the ' +
+        'people who answered rather than the country.' });
+    } else {
+      out.push({ level: 'ok', text: 'Fitted with the survey weight, and the standard errors ' +
+        'account for it.' });
+    }
+
+    return out;
+  }
+
+  function renderModelResults(m, outcomeName, preds, kind, checks) {
     var body = $('model-body');
     var isLinear = (kind === 'linear');
 
-    var html = '<div class="card"><h3>Estimates</h3>';
+    var html = '';
+
+    if (checks && checks.length) {
+      var worst = checks.some(function (c) { return c.level === 'bad'; }) ? 'bad'
+        : (checks.some(function (c) { return c.level === 'warn'; }) ? 'warn' : 'ok');
+      html += '<div class="card"><h3>Before you read the results</h3>' +
+        '<p class="role-legend">' +
+        (worst === 'ok'
+          ? 'Nothing here looks likely to break the model.'
+          : (worst === 'warn'
+            ? 'A couple of things below are worth knowing before quoting a number.'
+            : 'Something below is serious enough that the estimates should not be trusted ' +
+              'until it is dealt with.')) +
+        '</p><ul class="check-list">' +
+        checks.map(function (c) {
+          return '<li class="' + c.level + '">' + escapeHTML(c.text) + '</li>';
+        }).join('') + '</ul></div>';
+    }
+
+    html += '<div class="card"><h3>Regression results</h3>' +
+      questionBlock(outcomeName, (state.profileByName[outcomeName] || {}).values) +
+      '<p class="model-fitline"><b>' +
+      (isLinear ? 'Linear probability model (weighted least squares)'
+                : 'Weighted logistic regression') + '</b> &middot; ' +
+      'n = ' + fmt(m.n) + ' &middot; effective n = ' + fmt(m.nEff) + ' &middot; ' +
+      (isLinear
+        ? 'R\u00B2 = ' + (isFinite(m.r2) ? m.r2.toFixed(3) : '\u2014')
+        : 'McFadden pseudo-R\u00B2 = ' + (isFinite(m.pseudoR2) ? m.pseudoR2.toFixed(3) : '\u2014')) +
+      '</p>';
+
+    html += '<div class="read-this"><b>How to read a regression table.</b> Each row compares ' +
+      'one category against its reference. The <b>coefficient</b> is the size of the ' +
+      'difference' + (isLinear ? ', in percentage points' : ', as a log odds ratio') + '. The ' +
+      '<b>standard error</b> is how precisely it is pinned down. <b>t</b> is the coefficient ' +
+      'divided by its standard error, and <b>p</b> is what that works out to: the chance of ' +
+      'seeing a difference this big if there were really no difference at all.<br><br>' +
+      '<b>Look at p first.</b> Below 0.05 is the usual threshold for calling a result ' +
+      'statistically significant; below 0.01 and below 0.001 are stronger still. A row with ' +
+      'p above 0.05 has not shown a difference, however large its coefficient looks. Then look ' +
+      'at the coefficient, because a tiny difference can be significant in a big survey and ' +
+      'still not matter.<br><br>' +
+      '<b>R\u00B2</b> is the share of the variation the model accounts for. Survey models of ' +
+      'opinion routinely sit between 0.05 and 0.35: people are not very predictable from their ' +
+      'demographics, and a low value is normal rather than a failure.</p>';
 
     html += '<p class="headline">' +
       (isLinear
@@ -2154,15 +2412,14 @@
           'average change in probability, in percentage points, which is the figure to quote.') +
       '</p>';
 
-    html += '<table class="data"><caption>' +
-      (isLinear ? 'Weighted least squares' : 'Weighted logistic regression') +
-      ' on ' + escapeHTML(outcomeName) +
-      '. Standard errors are design-based and account for the weights but not for ' +
-      'clustering. Reference categories carry no estimate: every other category in ' +
-      'that variable is measured against them.</caption><thead><tr>' +
-      '<th>compared with the reference</th><th>' + (isLinear ? 'difference' : 'log odds') + '</th>' +
+    html += '<table class="data"><caption>Standard errors are design-based: they account ' +
+      'for the survey weights, though not for clustering. A reference category carries no ' +
+      'estimate, because every other category of that variable is measured against ' +
+      'it.</caption><thead><tr>' +
+      '<th>independent variable</th><th>' + (isLinear ? 'coef (pts)' : 'coef (log odds)') + '</th>' +
       (isLinear ? '' : '<th>odds ratio</th>') +
-      '<th class="moe">std. error</th><th class="moe">95% interval</th><th class="moe">p</th>' +
+      '<th class="moe">std err</th><th class="moe">t</th><th class="moe">P&gt;|t|</th>' +
+      '<th class="moe">[0.025, 0.975]</th>' +
       (isLinear ? '' : '<th>effect, pts</th>') +
       '</tr></thead><tbody>';
 
@@ -2188,7 +2445,7 @@
       if (s.reference) {
         html += '<tr class="is-reference"><td class="term">' +
           escapeHTML(s.variable + ': ' + showValue(s.variable, s.level)) + '</td>' +
-          '<td colspan="' + (isLinear ? 4 : 6) + '">reference category</td></tr>';
+          '<td colspan="' + (isLinear ? 5 : 7) + '">reference \u2014 others are compared with this</td></tr>';
         return;
       }
       var c = s.coef;
@@ -2200,16 +2457,17 @@
         '<td>' + est + '</td>' +
         (isLinear ? '' : '<td>' + c.oddsRatio.toFixed(2) + '</td>') +
         '<td class="moe">' + (isLinear ? num(100 * c.se, 1) : num(c.se, 3)) + '</td>' +
+        '<td class="moe">' + num(c.z, 2) + '</td>' +
+        '<td class="moe' + (c.p <= 0.05 ? ' is-sig' : '') + '">' + pShort(c.p) + '</td>' +
         '<td class="moe">' + (isLinear
-          ? num(100 * c.lo, 1) + ' to ' + num(100 * c.hi, 1)
-          : num(c.lo, 2) + ' to ' + num(c.hi, 2)) + '</td>' +
-        '<td class="moe">' + pShort(c.p) + '</td>' +
+          ? '[' + num(100 * c.lo, 1) + ', ' + num(100 * c.hi, 1) + ']'
+          : '[' + num(c.lo, 2) + ', ' + num(c.hi, 2) + ']') + '</td>' +
         (isLinear ? '' : '<td>' + (c.ame === null ? '\u2014' :
           (c.ame >= 0 ? '+' : '\u2212') + Math.abs(100 * c.ame).toFixed(1)) + '</td>') +
         '</tr>';
     });
 
-    html += '</tbody><tfoot><tr><td>fit</td><td colspan="' + (isLinear ? 4 : 6) + '">' +
+    html += '</tbody><tfoot><tr><td>fit</td><td colspan="' + (isLinear ? 5 : 7) + '">' +
       'complete cases ' + fmt(m.n) + ' &middot; effective n ' + fmt(m.nEff) +
       ' &middot; dropped for missing data ' + fmt(m.dropped) +
       ' &middot; ' + (isLinear
@@ -2239,23 +2497,31 @@
     html += '</div>';
 
     // coefficient plot
-    html += '<div class="card"><h3>What the model separates</h3>' +
-      '<p style="margin:0 0 14px;color:var(--slate);font-size:12.5px;max-width:70ch">' +
-      'A hollow dot marks an interval that crosses zero: the model has not distinguished ' +
-      'that category from its reference.</p>' +
+    html += '<div class="card"><h3>The results as a picture</h3>' +
+      '<p style="margin:0 0 14px;color:var(--slate);font-size:12.5px;max-width:72ch">' +
+      'Each bar is one row of the table above. Its length is the coefficient and its color ' +
+      'is the p-value, so the solid dark bars are the findings and the pale grey ones are ' +
+      'differences this survey could not establish. The whiskers are the 95% confidence ' +
+      'interval; where they cross the zero line, the difference is not significant.</p>' +
       '<div class="chart" id="coef-chart"></div>' +
       '<div class="figure-actions"><button class="secondary" id="coef-dl">Save figure as SVG</button></div></div>';
 
     // adjusted predictions, for the first categorical predictor
     var firstCat = preds.filter(function (p) { return p.type === 'categorical'; })[0];
     if (firstCat) {
-      html += '<div class="card"><h3>Adjusted predictions</h3>' +
-        '<p style="margin:0 0 14px;color:var(--slate);font-size:12.5px;max-width:70ch">' +
-        'What the model says support would be if the entire sample had each value of ' +
-        '<code>' + escapeHTML(firstCat.name) + '</code>, with every other predictor left at its ' +
-        'observed value. The tick marks the plain weighted percentage in the data, which ' +
-        'has no such adjustment. A wide separation between the two says the raw ' +
-        'difference was partly something else.</p>' +
+      html += '<div class="card"><h3>Adjusted predictions \u2014 the results in plain percentages</h3>' +
+        '<div class="read-this"><b>What this is for.</b> A log odds ratio, or even a ' +
+        'coefficient in points, is hard to picture. This turns the model back into ordinary ' +
+        'percentages.<br><br>' +
+        'The question it answers is: <i>if everyone in the survey were rural, but kept their ' +
+        'real age, party and education, what share would the model expect to give this ' +
+        'answer? And if everyone were urban instead?</i> Doing that for each category puts ' +
+        'them on equal footing, because the only thing changing between the rows is the one ' +
+        'variable.<br><br>' +
+        'The tick on each row is the plain percentage straight from the data, with no ' +
+        'adjustment at all. <b>Where the dot and the tick are far apart, the raw difference ' +
+        'was partly something else</b> \u2014 rural areas leaning Republican, say \u2014 and the ' +
+        'model has taken that part out.</div>' +
         '<div class="controls"><div class="field">' +
         '<label for="adj-var">Predictor</label><select id="adj-var"></select>' +
         '</div></div>' +
@@ -2269,17 +2535,18 @@
     var plotTerms = [];
     preds.forEach(function (p) {
       if (p.type === 'categorical') {
-        plotTerms.push({ label: p.name + ': ' + showValue(p.name, p.reference),
-          reference: true, estimate: 0, lo: 0, hi: 0 });
+        plotTerms.push({ label: varLabel(p.name) + ': ' + showValue(p.name, p.reference),
+          reference: true, estimate: 0, lo: 0, hi: 0, p: 1 });
       }
       m.coefficients.forEach(function (c) {
         if (c.variable !== p.name) return;
         var useAme = (kind === 'logistic');
         plotTerms.push({
-          label: p.name + ': ' + showValue(p.name, c.level),
+          label: varLabel(p.name) + ': ' + showValue(p.name, c.level),
           estimate: useAme ? c.ame : c.beta,
           lo: useAme ? c.ame - 1.959964 * c.ameSE : c.lo,
-          hi: useAme ? c.ame + 1.959964 * c.ameSE : c.hi
+          hi: useAme ? c.ame + 1.959964 * c.ameSE : c.hi,
+          p: c.p
         });
       });
     });

@@ -364,10 +364,10 @@
   function pairedSquare(container, gapResult, opts) {
     opts = opts || {};
     container.innerHTML = '';
-    var W = 440, H = 330;
+    var W = 460, H = 350;
     var svg = svgRoot(W, H);
     var c = gapResult.cellsW, tot = gapResult.totalW;
-    var pad = 76, size = 200;
+    var pad = 88, size = 196;
 
     var pYes = (c.bothYes + c.aOnly) / tot;         // yes on A
     var pYesGivenA = (c.bothYes + c.bOnly) / tot;   // yes on B
@@ -391,34 +391,48 @@
 
     // left column = yes on A ; top = yes on B
     var P = palette();
-    block(pad, pad, splitX - pad, splitYTop - pad, P.support[0], 'favors both', c.bothYes, false);
-    block(pad, splitYTop, splitX - pad, pad + size - splitYTop, P.oppose[1], 'favors in general, not locally', c.aOnly, false);
-    block(splitX, pad, pad + size - splitX, splitYBot - pad, P.support[1], 'opposes in general, favors locally', c.bOnly, true);
-    block(splitX, splitYBot, pad + size - splitX, pad + size - splitYBot, P.middle, 'opposes both', c.neither, true);
+    var BLOCKS = [
+      { color: P.support[0], name: 'yes to both' },
+      { color: P.oppose[1],  name: 'yes in general, no locally' },
+      { color: P.support[2] || P.support[1], name: 'no in general, yes locally' },
+      { color: P.middle,     name: 'no to both' }
+    ];
+    block(pad, pad, splitX - pad, splitYTop - pad, BLOCKS[0].color, BLOCKS[0].name, c.bothYes, false);
+    block(pad, splitYTop, splitX - pad, pad + size - splitYTop, BLOCKS[1].color, BLOCKS[1].name, c.aOnly, false);
+    block(splitX, pad, pad + size - splitX, splitYBot - pad, BLOCKS[2].color, BLOCKS[2].name, c.bOnly, true);
+    block(splitX, splitYBot, pad + size - splitX, pad + size - splitYBot, BLOCKS[3].color, BLOCKS[3].name, c.neither, true);
 
     // Each column and each row is named where it sits, so nothing has to be
     // inferred from an arrow. The width of a column is the share answering
     // that way in general; the height of a block within it is the share
     // answering that way locally.
     svg.appendChild(el('text', {
-      x: pad + (splitX - pad) / 2, y: pad - 20, 'text-anchor': 'middle',
-      'font-size': 10, fill: 'var(--ink)'
-    }, 'favors in general'));
+      x: pad + size / 2, y: 16, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, (opts.labelA || 'question A') + '  \u2014 width of each column'));
+    svg.appendChild(el('text', {
+      x: pad + (splitX - pad) / 2, y: pad - 8, 'text-anchor': 'middle',
+      'font-size': 11, fill: 'var(--ink)', 'font-weight': 600
+    }, 'yes'));
     if (pad + size - splitX > 40) {
       svg.appendChild(el('text', {
-        x: splitX + (pad + size - splitX) / 2, y: pad - 20, 'text-anchor': 'middle',
-        'font-size': 10, fill: 'var(--slate)'
-      }, 'opposes'));
+        x: splitX + (pad + size - splitX) / 2, y: pad - 8, 'text-anchor': 'middle',
+        'font-size': 11, fill: 'var(--slate)'
+      }, 'no'));
     }
     svg.appendChild(el('text', {
-      'font-size': 10, fill: 'var(--ink)', 'text-anchor': 'middle',
-      transform: 'translate(' + (pad - 14) + ',' + (pad + (splitYTop - pad) / 2) + ') rotate(-90)'
-    }, 'favors locally'));
+      'font-size': 10.5, fill: 'var(--slate)', 'text-anchor': 'middle',
+      transform: 'translate(14,' + (pad + size / 2) + ') rotate(-90)'
+    }, (opts.labelB || 'question B') + '  \u2014 height within each column'));
+    svg.appendChild(el('text', {
+      'font-size': 11, fill: 'var(--ink)', 'font-weight': 600, 'text-anchor': 'middle',
+      transform: 'translate(' + (pad - 12) + ',' + (pad + (splitYTop - pad) / 2) + ') rotate(-90)'
+    }, 'yes'));
     if (pad + size - splitYTop > 34) {
       svg.appendChild(el('text', {
-        'font-size': 10, fill: 'var(--slate)', 'text-anchor': 'middle',
-        transform: 'translate(' + (pad - 14) + ',' + (splitYTop + (pad + size - splitYTop) / 2) + ') rotate(-90)'
-      }, 'opposes'));
+        'font-size': 11, fill: 'var(--slate)', 'text-anchor': 'middle',
+        transform: 'translate(' + (pad - 12) + ',' + (splitYTop + (pad + size - splitYTop) / 2) + ') rotate(-90)'
+      }, 'no'));
     }
 
     svg.appendChild(el('rect', {
@@ -444,6 +458,15 @@
     }, 'favor it in general, not locally'));
 
     container.appendChild(svg);
+
+    var key = document.createElement('div');
+    key.className = 'legend';
+    key.innerHTML = BLOCKS.map(function (bd) {
+      return '<span class="legend-item"><span class="legend-swatch" style="background:' +
+        bd.color + '"></span>' + bd.name + '</span>';
+    }).join('');
+    container.appendChild(key);
+
     return svg;
   }
 
@@ -464,13 +487,27 @@
     opts = opts || {};
     container.innerHTML = '';
     var P = palette();
-    var labelW = opts.labelWidth || 210;
-    var rowH = 26, padTop = 16, padBottom = 52, padRight = 130;
-    var W = 780, plotX0 = labelW, plotX1 = W - padRight;
+
+    // Bars colored by how strong the evidence is, which is the convention in
+    // published regression figures: the eye goes to the solid bars, and the
+    // grey ones are the ones the data cannot separate from zero.
+    var BANDS = [
+      { test: function (p) { return p <= 0.001; }, color: '#0B4F6C', label: 'p \u2264 0.001' },
+      { test: function (p) { return p <= 0.01; },  color: '#21937A', label: '0.001 < p \u2264 0.01' },
+      { test: function (p) { return p <= 0.05; },  color: '#8ED6BE', label: '0.01 < p \u2264 0.05' },
+      { test: function () { return true; },        color: '#CBD4D0', label: 'p > 0.05 (not significant)' }
+    ];
+    function bandOf(p) {
+      for (var i = 0; i < BANDS.length; i++) if (BANDS[i].test(p)) return BANDS[i];
+      return BANDS[3];
+    }
+
+    var labelW = opts.labelWidth || 250;
+    var rowH = 22, padTop = 18, padBottom = 56, padRight = 84;
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + terms.length * rowH + padBottom;
     var svg = svgRoot(W, H);
 
-    // symmetric, rounded domain
     var span = 0;
     terms.forEach(function (t) {
       span = Math.max(span, Math.abs(t.lo), Math.abs(t.hi), Math.abs(t.estimate));
@@ -482,85 +519,88 @@
     var limit = Math.ceil(span / step) * step;
 
     function X(v) { return plotX0 + (plotX1 - plotX0) * ((v + limit) / (2 * limit)); }
+    var zeroX = X(0);
+    var bottom = padTop + terms.length * rowH;
 
-    // gridlines at each step
     for (var g = -limit; g <= limit + 1e-9; g += step) {
       var gx = X(g);
       var isZero = Math.abs(g) < 1e-12;
       svg.appendChild(el('line', {
-        x1: gx, x2: gx, y1: padTop - 6, y2: padTop + terms.length * rowH - 6,
-        stroke: isZero ? 'var(--slate)' : 'var(--grid)',
+        x1: gx, x2: gx, y1: padTop - 6, y2: bottom,
+        stroke: isZero ? 'var(--ink)' : 'var(--grid)',
         'stroke-width': isZero ? 1.25 : 1
       }));
       svg.appendChild(el('text', {
-        x: gx, y: padTop + terms.length * rowH + 12, 'text-anchor': 'middle',
+        x: gx, y: bottom + 14, 'text-anchor': 'middle',
         'font-size': 10, fill: 'var(--slate)', 'font-variant-numeric': 'tabular-nums'
       }, opts.asPercentagePoints ? (100 * g).toFixed(0) : g.toFixed(2)));
     }
 
     terms.forEach(function (t, ix) {
-      var y = padTop + ix * rowH + rowH / 2 - 6;
+      var y = padTop + ix * rowH;
+      var cy = y + rowH / 2;
 
-      svg.appendChild(el('text', {
-        x: labelW - 10, y: y + 4, 'text-anchor': 'end', 'font-size': 11.5,
+      var shown = String(t.label);
+      if (shown.length > 38) shown = shown.slice(0, 36).replace(/\s+\S*$/, '') + '\u2026';
+      var lab = el('text', {
+        x: labelW - 10, y: cy + 4, 'text-anchor': 'end', 'font-size': 11.5,
         fill: t.reference ? 'var(--slate)' : 'var(--ink)',
         'font-style': t.reference ? 'italic' : 'normal'
-      }, t.label));
+      }, shown);
+      lab.appendChild(el('title', {}, t.label));
+      svg.appendChild(lab);
 
       if (t.reference) {
-        // the omitted category: marked on the zero line, no estimate
-        svg.appendChild(el('circle', {
-          cx: X(0), cy: y, r: 3, fill: 'none',
-          stroke: 'var(--slate)', 'stroke-width': 1
-        }));
         svg.appendChild(el('text', {
-          x: plotX1 + 8, y: y + 4, 'font-size': 10, fill: 'var(--slate)'
-        }, 'reference'));
+          x: zeroX + 6, y: cy + 4, 'font-size': 10, fill: 'var(--slate)', 'font-style': 'italic'
+        }, 'baseline for comparison'));
         return;
       }
 
-      var crossesZero = (t.lo <= 0 && t.hi >= 0);
-      var color = t.estimate >= 0 ? P.positive : P.negative;
+      var band = bandOf(t.p);
+      var x0 = Math.min(zeroX, X(t.estimate));
+      var w = Math.abs(X(t.estimate) - zeroX);
 
+      var bar = el('rect', {
+        x: x0, y: y + 4, width: Math.max(w, 0.8), height: rowH - 8,
+        fill: band.color
+      });
+      bar.appendChild(el('title', {}, t.label + ': ' + t.estimate.toFixed(3) +
+        ' (' + t.lo.toFixed(3) + ' to ' + t.hi.toFixed(3) + '), ' +
+        (t.p < 0.001 ? 'p < 0.001' : 'p = ' + t.p.toFixed(3))));
+      svg.appendChild(bar);
+
+      // 95% interval drawn over the bar, as in a published figure
+      var lo = X(Math.max(t.lo, -limit)), hi = X(Math.min(t.hi, limit));
       svg.appendChild(el('line', {
-        x1: X(Math.max(t.lo, -limit)), x2: X(Math.min(t.hi, limit)),
-        y1: y, y2: y, stroke: color, 'stroke-width': 1.5
+        x1: lo, x2: hi, y1: cy, y2: cy, stroke: 'var(--ink)', 'stroke-width': 1.1
       }));
-      [t.lo, t.hi].forEach(function (b) {
-        if (b < -limit || b > limit) return;
+      [lo, hi].forEach(function (b) {
         svg.appendChild(el('line', {
-          x1: X(b), x2: X(b), y1: y - 4, y2: y + 4, stroke: color, 'stroke-width': 1.5
+          x1: b, x2: b, y1: cy - 4, y2: cy + 4, stroke: 'var(--ink)', 'stroke-width': 1.1
         }));
       });
-
-      var dot = el('circle', {
-        cx: X(t.estimate), cy: y, r: 5,
-        fill: crossesZero ? 'var(--panel)' : color,
-        stroke: color, 'stroke-width': 1.5
-      });
-      dot.appendChild(el('title', {}, t.label + ': ' + t.estimate.toFixed(3) +
-        ' (' + t.lo.toFixed(3) + ' to ' + t.hi.toFixed(3) + ')'));
-      svg.appendChild(dot);
-
-      var txt = opts.asPercentagePoints
-        ? (t.estimate >= 0 ? '+' : '\u2212') + Math.abs(100 * t.estimate).toFixed(1) + ' pts'
-        : t.estimate.toFixed(3);
-      svg.appendChild(el('text', {
-        x: plotX1 + 8, y: y + 4, 'font-size': 11, fill: 'var(--ink)',
-        'font-variant-numeric': 'tabular-nums'
-      }, txt));
     });
 
-    var axisY = padTop + terms.length * rowH - 6;
     svg.appendChild(el('line', {
-      x1: plotX0, x2: plotX1, y1: axisY, y2: axisY, stroke: 'var(--rule)', 'stroke-width': 1
+      x1: plotX0, x2: plotX1, y1: bottom, y2: bottom, stroke: 'var(--rule)', 'stroke-width': 1
     }));
     svg.appendChild(el('text', {
-      x: (plotX0 + plotX1) / 2, y: axisY + 34, 'text-anchor': 'middle',
-      'font-size': 10.5, fill: 'var(--slate)'
-    }, opts.axisLabel || 'estimate'));
+      x: (plotX0 + plotX1) / 2, y: bottom + 36, 'text-anchor': 'middle',
+      'font-size': 11, fill: 'var(--slate)'
+    }, opts.axisLabel || 'coefficient'));
 
     container.appendChild(svg);
+
+    var key = document.createElement('div');
+    key.className = 'legend';
+    key.innerHTML = BANDS.map(function (bd) {
+      return '<span class="legend-item"><span class="legend-swatch" style="background:' +
+        bd.color + '"></span>' + bd.label + '</span>';
+    }).join('') +
+      '<span class="legend-item"><span class="legend-rule"></span>95% confidence interval</span>';
+    container.appendChild(key);
+
     return svg;
   }
 

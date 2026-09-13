@@ -172,6 +172,11 @@ The same comparison as a table of numbers, for when you want exact figures to
 quote. Each row is a group and adds across to 100%. The screen explains the
 two statistics underneath it.
 
+There is a **Combine categories** panel here. Give two answers the same name
+and they merge into one column: four scale points become favor against oppose,
+or a category with too few people folds into its neighbour. Only the table
+changes; the data underneath is untouched.
+
 ### General vs. local
 
 Some surveys ask people about something in general and also about that same
@@ -188,6 +193,27 @@ properly.
 The one that takes real thought, and the one with vocabulary attached. The
 **dependent variable** is what you are trying to explain. The **independent
 variables** are the things that might explain it.
+
+Before the results it runs a set of checks — whether the outcome is too
+lopsided to model, whether there are enough people for the number of things
+being estimated, how many were dropped for missing answers, whether any
+category is too thin, whether two independent variables are duplicating each
+other, and whether the weight is set. Read those first. A model can produce
+confident-looking numbers from data that cannot support them.
+
+The results come as a table with the standard columns — coefficient, standard
+error, t, and P>|t| — and as a bar chart colored by p-value. **Look at p
+first.** Below 0.05 is the usual threshold; a bar that crosses the zero line
+has not shown a difference however long it looks. Then look at the size, because
+in a survey of thousands a difference can be statistically significant and still
+too small to matter.
+
+**Adjusted predictions** turn the model back into ordinary percentages. They
+answer: if everyone in the survey were rural, but kept their real age, party
+and education, what share would the model expect to agree? Doing that for each
+category puts them on equal footing. A tick shows the plain unadjusted
+percentage beside it, and where the two are far apart, the raw difference was
+partly something else.
 
 Here is the problem it solves. Say rural people are less supportive of a local
 solar farm than city people. Rural areas also lean Republican, and Republicans
