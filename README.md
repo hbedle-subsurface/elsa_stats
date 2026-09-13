@@ -214,6 +214,11 @@ The one that takes real thought, and the one with vocabulary attached. The
 **dependent variable** is what you are trying to explain. The **independent
 variables** are the things that might explain it.
 
+Pick the question you want to explain, then check the line under it: *"The
+model will explain who answered **Favor**: 6,880 people out of 8,638."* A
+regression explains one answer against all the others, so that line is the
+whole setup in a sentence. If it names the wrong answer, change it there.
+
 Before the results it runs a set of checks — whether the outcome is too
 lopsided to model, whether there are enough people for the number of things
 being estimated, how many were dropped for missing answers, whether any

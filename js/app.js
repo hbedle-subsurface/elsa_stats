@@ -2131,6 +2131,9 @@
   $('model-outcome').addEventListener('change', function () {
     syncQuestion(this.value, 'model-outcome');
     renderModelOutcomeRoles();
+    // the list of things that can go in as independent variables depends on
+    // which one is the outcome, and so does the summary beside the button
+    renderModelPredictors();
     $('model-body').innerHTML = '';
   });
   Array.prototype.forEach.call(document.querySelectorAll('input[name="model-kind"]'), function (r) {
@@ -2159,25 +2162,55 @@
     ensureRoles(name);
     var p = state.profileByName[name];
 
-    var html = '<p class="role-legend">The model explains the probability of the ' +
-      'answers marked as the outcome. Everything marked excluded is dropped from ' +
-      'the model rather than counted on either side.</p><div class="cat-editor">';
+    // A regression explains ONE answer. Where the wording makes the direction
+    // obvious the guess is right; where it does not — "A lot / Some / Not too
+    // much / None at all" has no favour side — nothing was marked, and the
+    // screen refused to run with an error nowhere near the control that fixes
+    // it. Start on the first real answer instead, and say which one it is.
+    if (!yesList(name).length) {
+      var firstReal = p.values.filter(function (v) {
+        return state.detectedRefusals.indexOf(String(v.value)) === -1;
+      })[0];
+      if (firstReal) state.roles[name][firstReal.value] = 'yes';
+    }
+
+    var html = questionBlock(name, p.values);
+    html += '<p class="role-legend">A regression explains <b>one</b> answer: it estimates who ' +
+      'gives that answer rather than any of the others. Everything left as \u201Cnot the ' +
+      'outcome\u201D stays in the comparison; anything excluded drops out of the model ' +
+      'entirely.</p><div class="cat-editor">';
+
+    var counted = 0, inBase = 0, left = 0;
     p.values.forEach(function (v) {
       var role = state.roles[name][v.value] || 'no';
-      html += '<div class="cat-row"><span class="cat-value">' + escapeHTML(v.value) + '</span>' +
+      if (role === 'yes') { counted += v.n; inBase += v.n; }
+      else if (role === 'no') { inBase += v.n; }
+      else { left += v.n; }
+
+      html += '<div class="cat-row role-' + role + '"><span class="cat-value">' +
+        escapeHTML(showValue(name, v.value)) + '</span>' +
         '<span class="cat-n">' + fmt(v.n) + '</span>' +
         '<select data-mvar="' + escapeHTML(name) + '" data-value="' + escapeHTML(v.value) + '">' +
-        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>the outcome</option>' +
+        '<option value="yes"' + (role === 'yes' ? ' selected' : '') + '>\u25CF the outcome</option>' +
         '<option value="no"' + (role === 'no' ? ' selected' : '') + '>not the outcome</option>' +
-        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>exclude</option>' +
+        '<option value="drop"' + (role === 'drop' ? ' selected' : '') + '>exclude these people</option>' +
         '</select></div>';
     });
     html += '</div>';
+
+    var tracked = yesList(name).map(function (v) { return labelOf(name, v); }).join(' or ');
+    html += '<p class="base-line">The model will explain who answered <b>' +
+      escapeHTML(tracked || '\u2014 nothing chosen \u2014') + '</b>: ' + fmt(counted) +
+      ' people out of ' + fmt(inBase) +
+      (left ? ', with ' + fmt(left) + ' excluded' : '') + '.</p>';
+
     target.innerHTML = html;
 
     target.querySelectorAll('select').forEach(function (sel) {
       sel.addEventListener('change', function () {
         state.roles[this.getAttribute('data-mvar')][this.getAttribute('data-value')] = this.value;
+        renderModelOutcomeRoles();
+        renderModelSummary();
         $('model-body').innerHTML = '';
       });
     });
@@ -2285,6 +2318,8 @@
         modelPredictors[this.getAttribute('data-refvar')].reference = this.value;
       });
     });
+    renderModelSummary();
+
     $('pred-find').addEventListener('input', function () {
       var q = (this.value || '').trim().toLowerCase();
       var ul = $('pred-results');
@@ -2308,6 +2343,29 @@
     });
   }
 
+  /* A one-line restatement of the model, next to the button that fits it, so
+   * what is about to be estimated is visible without scrolling back up. */
+  function renderModelSummary() {
+    var box = $('model-summary');
+    if (!box) return;
+    var name = $('model-outcome').value;
+    if (!name) { box.innerHTML = ''; return; }
+    ensureRoles(name);
+
+    var tracked = yesList(name).map(function (v) { return labelOf(name, v); }).join(' or ');
+    var on = Object.keys(modelPredictors).filter(function (k) { return modelPredictors[k].on; });
+
+    if (!tracked) {
+      box.innerHTML = '<b>No outcome chosen.</b> Set one in the Dependent variable box above.';
+      return;
+    }
+    box.innerHTML = 'About to estimate: who answers <b>' + escapeHTML(tracked) + '</b> to ' +
+      '<b>' + escapeHTML(varLabel(name)) + '</b>, from ' +
+      (on.length
+        ? on.map(function (k) { return escapeHTML(varLabel(k)); }).join(', ')
+        : '<b>nothing yet \u2014 add an independent variable</b>') + '.';
+  }
+
   function fitAndRenderModel() {
     var outcomeName = $('model-outcome').value;
     var body = $('model-body');
@@ -2316,8 +2374,11 @@
     ensureRoles(outcomeName);
     var yes = yesList(outcomeName), drop = dropList(outcomeName);
     if (!yes.length) {
-      body.innerHTML = '<div class="notice"><p>At least one response has to be marked as ' +
-        'the outcome.</p></div>';
+      body.innerHTML = '<div class="notice"><p><b>No answer is marked as the outcome yet.</b></p>' +
+        '<p>Scroll up to the <i>Dependent variable</i> box at the top of this screen. Every ' +
+        'answer to <code>' + escapeHTML(varLabel(outcomeName)) + '</code> is listed there with ' +
+        'a menu beside it; set the one you want to explain to <b>the outcome</b>. The line ' +
+        'underneath will confirm how many people that is.</p></div>';
       return;
     }
 
