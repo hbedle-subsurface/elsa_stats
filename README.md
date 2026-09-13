@@ -71,6 +71,11 @@ there is no server behind this, and no one can see what you are looking at.
 That also means a survey you have not published yet — your own, or one shared
 with you in confidence — is safe to open here.
 
+That claim is worth being able to check rather than believe.
+`docs/PRIVACY.md` explains exactly what does and does not cross the network,
+how to verify it yourself in about a minute with the browser's own tools, and
+what it does not protect against.
+
 There are eight tabs, meant to be used roughly in order. Once you pick a
 question on one of them, the others stay on that same question, so you can
 look at it several ways without hunting for it again. Every question menu has
@@ -284,6 +289,8 @@ you look.
 - `docs/PEW-ATP-NOTES.md` covers the quirks of Pew's files specifically.
 - `docs/METHODS.md` gives the formula behind every number, and says where each
   one is approximate.
+- `docs/PRIVACY.md` explains why your data never leaves your computer, and how
+  to check that for yourself.
 - `docs/README-technical.md` is the version of this page for people who want
   the implementation details.
 

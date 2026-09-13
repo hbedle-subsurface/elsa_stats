@@ -897,3 +897,5 @@ details.tool-details > summary:hover { color: var(--teal-hover); }
 }
 .model-fitline b { color: var(--ink); font-weight: 600; }
 td.moe.is-sig { color: var(--ink); font-weight: 600; }
+
+.offline-badge a { color: var(--teal); font-size: 11px; margin-left: 4px; }
