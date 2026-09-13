@@ -1,0 +1,75 @@
+{
+  "_comment": [
+    "What the crawler looks for. Edit this file to change the search; nothing",
+    "else needs to change. Phrases with spaces must stay in quotes so the search",
+    "engines treat them as phrases rather than loose words.",
+    "",
+    "subjects are what gets searched for. recognize is the wider vocabulary used",
+    "to judge whether a result is on topic; a headline may say \"reservoir solar\"",
+    "when the search asked for \"floating solar\". Leave recognize out and the",
+    "subjects are used for both.",
+    "",
+    "Each topic produces one search per subject phrase. Topics marked per_state",
+    "are repeated once for every state below. Keep the lists short: both search",
+    "engines reject queries that get too long."
+  ],
+
+  "states": [
+    "Oklahoma", "Texas", "Kansas", "Arkansas",
+    "Louisiana", "Missouri", "New Mexico", "Colorado"
+  ],
+
+  "topics": [
+    {
+      "id": "solar_siting",
+      "label": "Solar siting and local opposition",
+      "per_state": true,
+      "subjects": ["\"solar farm\"", "\"solar project\""],
+      "recognize": ["solar farm", "solar project", "solar array", "solar development",
+                    "utility-scale solar", "solar installation", "solar plant",
+                    "battery storage", "solar and storage"],
+      "angles": [
+        "moratorium", "opposition", "residents", "zoning",
+        "\"county commission\"", "hearing", "petition", "setback"
+      ]
+    },
+    {
+      "id": "agrivoltaics",
+      "label": "Agrivoltaics",
+      "per_state": false,
+      "subjects": ["agrivoltaics", "\"solar grazing\"", "\"dual-use solar\""],
+      "recognize": ["agrivoltaic", "solar grazing", "dual-use solar", "dual use solar",
+                    "sheep graz", "graze between", "grazing between", "under the panels",
+                    "between the panels", "crops and solar", "solar and sheep"],
+      "angles": []
+    },
+    {
+      "id": "solar_on_water",
+      "label": "Solar on canals and reservoirs",
+      "per_state": false,
+      "subjects": ["\"floating solar\"", "\"canal solar\"", "\"reservoir solar\"",
+                   "floatovoltaics"],
+      "recognize": ["floating solar", "canal solar", "reservoir solar", "floatovoltaic",
+                    "solar over the canal", "solar over canals", "panels over water",
+                    "solar on the reservoir", "irrigation canal", "solar canopy over"],
+      "angles": []
+    }
+  ],
+
+  "_relevance_comment": [
+    "A result is kept when it scores 2 or more: a subject phrase in the",
+    "headline is worth 2, each angle word 1 up to 2, a state or county name 1.",
+    "Everything else is still stored and can be shown, just marked weak."
+  ],
+  "keep_threshold": 2,
+
+  "_limits_comment": [
+    "GDELT asks for one request every five seconds and caps any single search",
+    "at 250 articles. max_age_days only affects how far back a run reaches;",
+    "articles already collected are never dropped because they aged out."
+  ],
+  "gdelt_pause_seconds": 6,
+  "gdelt_max_records": 250,
+  "max_age_days": 30,
+  "keep_total": 8000
+}
