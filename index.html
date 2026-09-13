@@ -3,268 +3,401 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Solar siting in the news</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
-<style>
-:root{
-  --paper:#F6F8F6; --card:#FFFFFF;
-  --ink:#17241F; --ink-soft:#5A6B64;
-  --water:#1C5C6E; --water-pale:#E4EEF1;
-  --prairie:#4A7A4E; --prairie-pale:#E7EFE7;
-  --clay:#9E4F2C; --clay-pale:#F5E8E1;
-  --rule:#CBD9D3; --rule-soft:#E2EAE6; --sand:#E8EDE9;
-  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
-  --serif:"Source Serif 4",Charter,Georgia,serif;
-}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html,body{margin:0;padding:0}
-body{
-  background:var(--paper);color:var(--ink);
-  font-family:var(--sans);font-size:15px;line-height:1.5;
-  -webkit-font-smoothing:antialiased;
-  display:flex;flex-direction:column;min-height:100vh;
-}
-button,input,select,textarea{font:inherit;color:inherit}
-a{color:var(--water)}
-:focus-visible{outline:2px solid var(--water);outline-offset:2px;border-radius:2px}
-
-/* ------------------------------------------------------- masthead -- */
-header.top{border-bottom:1px solid var(--rule);background:var(--card);padding:14px 20px 0}
-.mast{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
-.mast h1{font-family:var(--serif);font-weight:600;font-size:21px;margin:0;letter-spacing:-.01em}
-.mast .sub{color:var(--ink-soft);font-size:13.5px}
-.mast .spacer{flex:1}
-.mast .counts{font-size:13px;color:var(--ink-soft);white-space:nowrap}
-.mast .counts b{color:var(--ink);font-weight:600}
-
-.strip{display:flex;gap:2px;align-items:flex-end;padding:12px 0 0;overflow-x:auto}
-.stbar{flex:1 1 16px;min-width:16px;max-width:52px;background:none;border:0;
-  padding:0 0 3px;cursor:pointer;text-align:center}
-.stbar .bar{height:34px;display:flex;align-items:flex-end;justify-content:center}
-.stbar .fill{width:100%;background:var(--rule);border-radius:1px 1px 0 0;min-height:1px;
-  transition:height .18s ease}
-.stbar .live{background:var(--water)}
-.stbar .lbl{font-size:9px;color:var(--ink-soft);letter-spacing:.02em;padding-top:3px}
-.stbar .cnt{display:block;font-size:9px;color:var(--ink-soft);opacity:.75}
-.stbar[aria-pressed="true"] .fill{background:var(--water-pale)}
-.stbar[aria-pressed="true"] .live{background:var(--water)}
-.stbar[aria-pressed="true"] .lbl{color:var(--water);font-weight:600}
-.stbar:hover .fill{filter:brightness(.94)}
-.striplab{font-size:10.5px;color:var(--ink-soft);margin:1px 0 8px}
-
-/* --------------------------------------------------------- layout -- */
-.wrap{display:grid;grid-template-columns:236px minmax(0,1fr) 288px;flex:1;min-height:0}
-.col{overflow-y:auto;padding:16px 18px}
-.rail{border-right:1px solid var(--rule)}
-.side{border-left:1px solid var(--rule);background:#FBFCFB}
-h2.sec{font-size:12px;font-weight:600;margin:0 0 8px;color:var(--ink-soft)}
-.rail section{margin-bottom:20px}
-
-/* ------------------------------------------------------- controls -- */
-.chip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--rule);
-  background:var(--card);color:var(--ink);padding:3px 9px;border-radius:20px;
-  font-size:12.5px;cursor:pointer;margin:0 4px 4px 0}
-.chip[aria-pressed="true"]{background:var(--water);border-color:var(--water);color:#fff}
-.chip.g[aria-pressed="true"]{background:var(--prairie);border-color:var(--prairie)}
-.chip .n{opacity:.62;font-size:11px}
-.chip:hover{border-color:var(--water)}
-.search{width:100%;padding:7px 10px;border:1px solid var(--rule);border-radius:4px;background:var(--card)}
-.linkish{background:none;border:0;padding:0;color:var(--water);cursor:pointer;
-  font-size:12.5px;text-decoration:underline;text-underline-offset:2px}
-.btn{border:1px solid var(--water);background:var(--water);color:#fff;padding:7px 12px;
-  border-radius:4px;cursor:pointer;font-size:13px;font-weight:500}
-.btn.ghost{background:var(--card);color:var(--water)}
-a.btn{text-decoration:none;display:inline-block}
-.btn.wide{width:100%;text-align:left}
-.btn:disabled{opacity:.45;cursor:default}
-.exhint{font-size:11.5px;color:var(--ink-soft);margin:4px 0 13px;line-height:1.4}
-
-#active{margin-bottom:9px}
-.pill{display:inline-flex;align-items:center;gap:6px;background:var(--water);color:#fff;
-  border:0;border-radius:20px;padding:3px 6px 3px 11px;font-size:12.5px;
-  margin:0 5px 5px 0;cursor:pointer}
-.pill .x{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
-  border-radius:50%;background:rgba(255,255,255,.24);font-size:11px}
-.pill:hover .x{background:rgba(255,255,255,.42)}
-.pill.clear{background:none;color:var(--water);padding-left:4px;text-decoration:underline;
-  text-underline-offset:2px}
-
-/* ---------------------------------------------------- result list -- */
-.hits{font-size:12.5px;color:var(--ink-soft);margin:0 0 10px}
-.art{background:var(--card);border:1px solid var(--rule-soft);border-left:3px solid var(--rule);
-  border-radius:3px;padding:10px 12px;margin-bottom:7px;cursor:pointer}
-.art:hover{border-color:var(--rule);border-left-color:var(--water)}
-.art.strong{border-left-color:var(--water)}
-.art.weak{border-left-color:var(--rule-soft);background:#FCFDFC}
-.art .hd{font-family:var(--serif);font-size:15.5px;font-weight:600;line-height:1.28}
-.art .meta{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
-.art.seen .hd{color:var(--ink-soft);font-weight:400}
-.art.seen .hd::after{content:'read';font-size:9.5px;color:var(--prairie);
-  border:1px solid #D3E3D4;background:var(--prairie-pale);border-radius:3px;
-  padding:0 4px;margin-left:7px;vertical-align:2px;font-family:var(--sans)}
-.tag{display:inline-block;font-size:10.5px;padding:1px 6px;border-radius:3px;
-  background:var(--sand);color:var(--ink-soft);margin:4px 4px 0 0;border:1px solid var(--rule-soft)}
-.tag.topic{background:var(--water-pale);color:var(--water);border-color:#CBE0E6}
-.tag.place{background:var(--prairie-pale);color:var(--prairie);border-color:#D3E3D4}
-.tag.star{background:#FBF3DC;color:#8A6714;border-color:#EDDFB8}
-
-/* -------------------------------------------------------- detail -- */
-.navrow{display:flex;gap:8px;align-items:center;margin:0 0 12px;flex-wrap:wrap}
-.navrow .spacer{flex:1}
-.kbd{font-size:11px;color:var(--ink-soft)}
-.detail{background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:18px 20px}
-.detail h3{font-family:var(--serif);font-size:21px;margin:0 0 5px;line-height:1.24;max-width:40ch}
-.detail .where{color:var(--ink-soft);font-size:13px;margin-bottom:15px}
-.detail h4{font-size:12px;font-weight:600;color:var(--ink-soft);margin:22px 0 8px;
-  padding-top:12px;border-top:1px solid var(--rule-soft)}
-.readfirst{background:var(--water-pale);border:1px solid #CBE0E6;border-radius:4px;
-  padding:13px 15px;margin-bottom:4px}
-.readfirst p{margin:8px 0 0;font-size:12.5px;color:var(--ink-soft)}
-.codegrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:14px}
-.codegroup{font-size:11.5px;color:var(--ink-soft);font-weight:600;margin-bottom:5px}
-.code{display:flex;gap:7px;align-items:flex-start;padding:3px 0;font-size:13px;cursor:pointer}
-.code input{margin-top:3px;accent-color:var(--water)}
-.sugbox{background:var(--prairie-pale);border:1px solid #D3E3D4;border-radius:4px;
-  padding:10px 12px;margin-bottom:10px}
-.sugbox .code{padding:4px 0}
-details.allcodes>summary{cursor:pointer;font-size:12.5px;color:var(--water);padding:5px 0;
-  text-decoration:underline;text-underline-offset:2px}
-details.allcodes[open]>summary{margin-bottom:9px}
-textarea.note{width:100%;min-height:80px;border:1px solid var(--rule);border-radius:4px;
-  padding:8px 10px;font-family:var(--serif);font-size:14px;resize:vertical}
-
-/* ------------------------------------------------------- sidebar -- */
-.work{list-style:none;margin:0;padding:0}
-.work li{padding:8px 0;border-bottom:1px solid var(--rule-soft);font-size:13px;cursor:pointer}
-.work li:hover .wnm{text-decoration:underline}
-.wnm{font-family:var(--serif);font-weight:600;font-size:14px;line-height:1.25}
-.wmeta{font-size:11px;color:var(--ink-soft);margin-top:2px}
-.tally{list-style:none;margin:0;padding:0;font-size:12.5px}
-.tally li{display:flex;align-items:center;gap:7px;padding:2.5px 0}
-.tally .tbar{height:8px;background:var(--prairie);border-radius:1px;min-width:1px}
-.tally .tn{color:var(--ink-soft);font-size:11px;width:26px;text-align:right}
-.tally .tl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* --------------------------------------------------- first screen -- */
-.opening{max-width:640px;margin:56px auto;padding:0 24px}
-.opening h2{font-family:var(--serif);font-size:25px;font-weight:600;margin:0 0 10px;line-height:1.22}
-.opening h3{font-family:var(--serif);font-size:17px;margin:26px 0 8px}
-.opening p{color:var(--ink-soft);font-size:15px;line-height:1.6;max-width:62ch}
-.steps{font-size:14px;color:var(--ink-soft);line-height:1.75;padding-left:20px;max-width:62ch}
-.steps b{color:var(--ink);font-weight:600}
-.quiet{color:var(--ink-soft);font-size:12.5px}
-.empty{color:var(--ink-soft);font-size:14px;font-family:var(--serif);padding:26px 0;max-width:48ch}
-
-@media (max-width:1040px){
-  .wrap{grid-template-columns:1fr;flex:none}
-  .rail,.side{border:0;border-bottom:1px solid var(--rule)}
-}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
-</style>
+<title>Survey Workbench</title>
+<meta name="description" content="Browser tool for weighted analysis of public opinion survey files. Runs entirely on your own machine.">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<div id="opening" class="opening">
-  <h2 id="opentitle">Loading what the crawler has collected</h2>
-  <div id="openbody"></div>
-</div>
-
-<header class="top" id="top" hidden>
-  <div class="mast">
-    <h1>Solar siting in the news</h1>
-    <span class="sub" id="updated"></span>
-    <span class="spacer"></span>
-    <span class="counts" id="counts"></span>
+<header class="masthead">
+  <div>
+    <h1>Survey Workbench</h1>
+    <div class="subtitle">Weighted analysis of public opinion data, in your own browser</div>
   </div>
-  <div class="strip" id="strip"></div>
-  <p class="striplab" id="striplab"></p>
+  <div class="offline-badge">
+    <b>Nothing leaves this browser.</b> No uploads, no servers, no analytics.
+    <a href="docs/PRIVACY.md">how to check</a>
+  </div>
 </header>
 
-<div class="wrap" id="wrap" hidden>
+<div class="shell" id="shell">
 
-  <div class="col rail">
+  <!-- ==================================================== instrument rail -->
+  <aside class="rail">
     <section>
-      <h2 class="sec">Search the headlines</h2>
-      <input class="search" id="q" type="search" placeholder="e.g. canal, grazing, moratorium">
+      <div class="rail-head">
+        <h2>Data state</h2>
+        <button class="rail-toggle" id="rail-wide" title="Widen or narrow this column">wider</button>
+      </div>
+      <div class="readout is-empty" id="readout">
+        <div class="readout-file" id="readout-file">no file loaded</div>
+        <dl>
+          <dt>cases</dt><dd id="ro-cases">&mdash;</dd>
+          <dt>variables</dt><dd id="ro-vars">&mdash;</dd>
+          <dt>weight</dt><dd class="code" id="ro-weight">&mdash;</dd>
+          <dt>effective n</dt><dd id="ro-neff">&mdash;</dd>
+          <dt>design effect</dt><dd id="ro-deff">&mdash;</dd>
+        </dl>
+        <p class="readout-note quiet" id="readout-note">Load a file to begin.</p>
+      </div>
     </section>
 
-    <section>
-      <h2 class="sec">State</h2>
-      <div id="statepick"></div>
-      <p class="quiet" id="statenote"></p>
+    <section id="rail-vars" hidden>
+      <h2>Variables</h2>
+      <label class="field" style="gap:4px">
+        <span style="font-size:11.5px;color:var(--slate)">Search the questions and answers</span>
+        <input type="text" class="var-search" id="var-search" placeholder="solar, rural, climate&hellip;" autocomplete="off">
+      </label>
+      <ul class="var-list" id="var-list"></ul>
+    </section>
+  </aside>
+
+  <!-- ===================================================== working panel -->
+  <main class="work">
+    <div class="tabs" role="tablist" aria-label="Analysis steps">
+      <button class="tab" role="tab" id="tab-load" aria-controls="panel-load" aria-selected="true">Load data</button>
+      <button class="tab" role="tab" id="tab-codebook" aria-controls="panel-codebook" aria-selected="false" disabled>Codebook</button>
+      <button class="tab" role="tab" id="tab-item" aria-controls="panel-item" aria-selected="false" disabled>One item</button>
+      <button class="tab" role="tab" id="tab-battery" aria-controls="panel-battery" aria-selected="false" disabled>Compare a list</button>
+      <button class="tab" role="tab" id="tab-profile" aria-controls="panel-profile" aria-selected="false" disabled>Who answers how</button>
+      <button class="tab" role="tab" id="tab-cross" aria-controls="panel-cross" aria-selected="false" disabled>Crosstab</button>
+      <button class="tab" role="tab" id="tab-gap" aria-controls="panel-gap" aria-selected="false" disabled>General vs. local</button>
+      <button class="tab" role="tab" id="tab-model" aria-controls="panel-model" aria-selected="false" disabled>Regression</button>
+    </div>
+
+    <!-- ------------------------------------------------------------ load -->
+    <section class="panel" role="tabpanel" id="panel-load" aria-labelledby="tab-load">
+      <h2>Load a survey file</h2>
+      <p class="lede">
+        Drop in an SPSS <code>.sav</code>, a CSV, or a tab-delimited file. It is
+        read by this page and stays on your machine. There is no server behind
+        this tool, so a confidential or unpublished survey can be analyzed here
+        safely &mdash; and <a href="docs/PRIVACY.md">that claim is checkable</a>
+        rather than something you have to take on trust.
+      </p>
+
+      <div class="dropzone" id="dropzone">
+        <p>Drag an SPSS <code>.sav</code> file here, or a <code>.csv</code></p>
+        <input type="file" id="file-input" accept=".sav,.csv,.tsv,.txt,.tab" hidden>
+        <button id="browse-btn">Choose a file</button>
+        <p style="margin-top:16px;font-size:12.5px">
+          or <button class="link" id="demo-btn">open the practice file</button>
+          to try everything out before you have real data
+        </p>
+        <p style="margin-top:14px;font-size:12px;color:var(--slate);max-width:60ch;margin-left:auto;margin-right:auto">
+          A <code>.sav</code> is best. It carries the question wording and the
+          answer labels, so the tool can show you what each question asked
+          instead of a column name like <code>ENV2_d_W148</code>.
+        </p>
+      </div>
+
+      <div id="load-message"></div>
+
+      <div class="card" style="margin-top:18px">
+        <h3>About the file you downloaded</h3>
+        <p style="margin-top:0;color:var(--slate);max-width:68ch">
+          Pew gives you several files. The one to use here is the
+          <code>.sav</code>. Drop it straight in &mdash; it is read on your own
+          computer, and it brings the question wording and answer labels with
+          it.
+        </p>
+        <p style="color:var(--slate);max-width:68ch">
+          The <code>.csv</code> works too, but it stores answers as bare numbers
+          with nothing to say what they mean, so you would have to look every
+          code up in the questionnaire yourself.
+        </p>
+      </div>
     </section>
 
-    <section>
-      <h2 class="sec">Topic</h2>
-      <div id="topicpick"></div>
+    <!-- -------------------------------------------------------- codebook -->
+    <section class="panel" role="tabpanel" id="panel-codebook" aria-labelledby="tab-codebook" hidden>
+      <h2>Codebook</h2>
+      <p class="lede">
+        Every variable in the file, with its response categories and how often
+        each one appears. Set the survey weight here, and mark any codes that
+        stand for refusals or non-responses so they are excluded from
+        percentage bases rather than counted as answers.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="weight-select">Survey weight</label>
+          <select id="weight-select"></select>
+        </div>
+        <div class="field">
+          <label for="missing-codes">Treat these codes as missing</label>
+          <input type="text" id="missing-codes" placeholder="98, Not asked" style="width:240px">
+        </div>
+        <button class="secondary" id="apply-missing">Apply</button>
+      </div>
+
+      <div id="refusal-switch"></div>
+
+      <div id="codebook-body"></div>
     </section>
 
-    <section>
-      <h2 class="sec">When</h2>
-      <div id="datepick"></div>
+    <!-- -------------------------------------------------------- one item -->
+    <section class="panel" role="tabpanel" id="panel-item" aria-labelledby="tab-item" hidden>
+      <h2>One item</h2>
+      <p class="lede">
+        The distribution of a single question, weighted and unweighted side by
+        side. The gap between the two columns is what the survey weights are
+        correcting for.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="item-select">Question</label>
+          <div class="picker"><input type="text" class="picker-search" id="item-select-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="item-select" size="1"></select><div class="picker-count" id="item-select-count"></div></div>
+        </div>
+      </div>
+
+      <div id="item-body"></div>
     </section>
 
-    <section>
-      <h2 class="sec">Outlet</h2>
-      <div id="outletpick"></div>
+    <!-- ---------------------------------------------------------- battery -->
+    <section class="panel" role="tabpanel" id="panel-battery" aria-labelledby="tab-battery" hidden>
+      <h2>Compare a list</h2>
+      <p class="lede">
+        Surveys rarely ask about one thing. They ask the same question about a
+        whole list &mdash; and the interesting answer is usually the ranking.
+      </p>
+
+      <div class="read-this">
+        <b>An example.</b> This survey asked <i>&ldquo;Do you favor or oppose
+        expanding each of the following sources of energy in our country?&rdquo;</i>
+        and then named six: solar, wind, nuclear, offshore drilling, fracking,
+        coal. Asked one at a time those are six separate numbers. Put on one
+        chart they answer a better question: <b>which energy sources do
+        Americans actually want more of, and in what order?</b><br><br>
+        This screen finds those lists automatically and draws them. Pick a list
+        below and the chart appears straight away.
+      </div>
+
+      <div class="controls controls-stack">
+        <div class="field" style="flex:1 1 420px">
+          <label for="battery-set">Which list of questions</label>
+          <div class="picker">
+            <select id="battery-set"></select>
+            <div class="picker-count" id="battery-set-items"></div>
+          </div>
+        </div>
+        <div class="field" style="flex:0 1 300px">
+          <label for="battery-group">Split by a group (optional)</label>
+          <div class="picker">
+            <input type="text" class="picker-search" id="battery-group-find"
+                   placeholder="type to filter, e.g. age, party&hellip;" autocomplete="off">
+            <select id="battery-group"></select>
+            <div class="picker-count" id="battery-group-count"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="battery-body"></div>
+      <div id="battery-roles"></div>
     </section>
 
-    <section>
-      <h2 class="sec">Where you are</h2>
-      <div id="markpick"></div>
+    <!-- ---------------------------------------------------------- profile -->
+    <section class="panel" role="tabpanel" id="panel-profile" aria-labelledby="tab-profile" hidden>
+      <h2>Who answers how</h2>
+      <p class="lede">
+        One question, broken out across every background variable at once. All
+        the panels share a single scale and a line marking the whole-sample
+        figure, so the groups that sit away from the average are the ones that
+        stand out.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="profile-item">Question</label>
+          <div class="picker"><input type="text" class="picker-search" id="profile-item-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="profile-item" size="1"></select><div class="picker-count" id="profile-item-count"></div></div>
+        </div>
+      </div>
+
+      <div id="profile-roles"></div>
+
+      <div class="card">
+        <h3>Break out by</h3>
+        <p class="role-legend">
+          These are the splits the chart is showing. Remove one with its
+          &times;, or add another.
+        </p>
+        <div class="predictor-grid" id="profile-groups"></div>
+      </div>
+
+      <div id="profile-body"></div>
     </section>
 
-    <section>
-      <h2 class="sec">Off-topic results</h2>
-      <div id="weakpick"></div>
-      <p class="quiet" id="weaknote"></p>
-    </section>
-  </div>
+    <!-- --------------------------------------------------------- crosstab -->
+    <section class="panel" role="tabpanel" id="panel-cross" aria-labelledby="tab-cross" hidden>
+      <h2>Crosstab</h2>
+      <p class="lede">
+        The same idea as the previous screen, but as a table of numbers rather
+        than a picture. Use it when you want the exact figures to quote.
+      </p>
 
-  <div class="col main">
-    <div id="active"></div>
-    <p class="hits" id="hits"></p>
-    <div id="list"></div>
-  </div>
+      <div class="read-this">
+        <b>How a crosstab works.</b> Pick a group on the left and a question on
+        the right. Each row of the table is one group of people, and the
+        numbers along that row show how that group answered, adding to 100%.
+        Reading <i>across</i> a row tells you what one group thinks. Reading
+        <i>down</i> a column compares the groups on one answer.<br><br>
+        Underneath, two numbers judge the table. <b>p</b> is the chance of
+        seeing differences this big if the groups really answered alike — below
+        0.05 is the usual line for taking a difference seriously. <b>Cramer's
+        V</b> says how big the difference is, from 0 (none) to 1 (total). With
+        a survey of several thousand people almost any table clears the p test,
+        so V is normally the more useful of the two.
+      </div>
 
-  <div class="col side">
-    <section>
-      <h2 class="sec">To follow up</h2>
-      <ul class="work" id="work"></ul>
-      <p class="quiet" id="worknote"></p>
-    </section>
+      <div class="controls">
+        <div class="field">
+          <label for="cross-row">Group (rows)</label>
+          <div class="picker"><input type="text" class="picker-search" id="cross-row-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="cross-row" size="1"></select><div class="picker-count" id="cross-row-count"></div></div>
+        </div>
+        <div class="field">
+          <label for="cross-col">Question (columns)</label>
+          <div class="picker"><input type="text" class="picker-search" id="cross-col-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="cross-col" size="1"></select><div class="picker-count" id="cross-col-count"></div></div>
+        </div>
+      </div>
 
-    <section style="margin-top:22px">
-      <h2 class="sec">Concerns in what you are looking at</h2>
-      <ul class="tally" id="tally"></ul>
-      <p class="quiet" id="tallynote"></p>
-    </section>
-
-    <section style="margin-top:22px">
-      <h2 class="sec">Take it with you</h2>
-      <button class="btn ghost wide" id="exCoded">Your coding, as a table</button>
-      <p class="exhint">One row per article, one column per category. Opens in a
-         spreadsheet or a statistics tool.</p>
-      <button class="btn ghost wide" id="exList">The reading list</button>
-      <p class="exhint">Headline, outlet, date and link for everything in the
-         current filter.</p>
-      <button class="btn ghost wide" id="exSess">Back up your work</button>
-      <p class="exhint">Keep this if you switch computers. Your coding lives in this
-         browser otherwise.</p>
-      <button class="btn ghost wide" id="imSess" style="margin-bottom:0">Restore a backup</button>
-      <input type="file" id="sessfile" accept=".json" hidden>
+      <div id="cross-merge"></div>
+      <div id="cross-body"></div>
     </section>
 
-    <section style="margin-top:22px">
-      <h2 class="sec">Last collection</h2>
-      <p class="quiet" id="runinfo"></p>
+    <!-- -------------------------------------------------------------- gap -->
+    <section class="panel" role="tabpanel" id="panel-gap" aria-labelledby="tab-gap" hidden>
+      <h2>General support vs. local support</h2>
+      <p class="lede">
+        Two questions answered by the same people: whether they support a
+        technology in general, and whether they support it where they live. The
+        difference between those two percentages is the quantity at the center
+        of the NIMBY literature. Because both answers come from the same
+        respondents, the two percentages are correlated, and the comparison
+        uses McNemar's test on the people who answered the two questions
+        differently.
+      </p>
+
+      <div class="controls">
+        <div class="field">
+          <label for="gap-a">Question A &mdash; support in general</label>
+          <div class="picker"><input type="text" class="picker-search" id="gap-a-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="gap-a" size="1"></select><div class="picker-count" id="gap-a-count"></div></div>
+        </div>
+        <div class="field">
+          <label for="gap-b">Question B &mdash; support locally</label>
+          <div class="picker"><input type="text" class="picker-search" id="gap-b-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="gap-b" size="1"></select><div class="picker-count" id="gap-b-count"></div></div>
+        </div>
+        <div class="field">
+          <label for="gap-group">Break out by</label>
+          <select id="gap-group"></select>
+        </div>
+      </div>
+
+      <div class="read-this">
+        <b>Using this with the Pew energy survey (Wave 148).</b> That wave asks
+        everyone whether they favor <i>more solar panel farms in our country</i>
+        — the variable called <code>ENV2_d</code>. It does not ask whether they
+        would favor one where they live. What it asks instead, of half the
+        sample, is what they think a local solar farm <i>would do</i>:<br><br>
+        <code>COMMSOLR_a</code> make the landscape unattractive &middot;
+        <code>COMMSOLR_b</code> take up too much space &middot;
+        <code>COMMSOLR_c</code> bring in tax revenue &middot;
+        <code>COMMSOLR_d</code> lower your electricity bill &middot;
+        <code>GRNECON1</code> help or hurt the local economy<br><br>
+        So a fair comparison is <code>ENV2_d</code> against one of those. Set
+        question A to <code>ENV2_d</code> with <i>Favor</i> as the supporting
+        answer, and question B to <code>COMMSOLR_a</code> with the two
+        <i>No, it would not</i> answers as supporting, since not expecting harm
+        is the pro-solar side of that item.<br><br>
+        <b>Say carefully what you found.</b> This measures people who favor
+        solar nationally but expect a local downside. That is not the same as
+        people who would oppose a local farm — someone can expect a farm to be
+        ugly and still want it built. Wave 148 cannot tell those two people
+        apart, so write it as expected local drawbacks, not as opposition.<br><br>
+        Two practical notes. The local items were asked of only half the
+        sample, so the comparison runs on about 4,300 people rather than 8,638
+        and the margins of error roughly double. And the solar and wind local
+        items went to <i>different</i> halves, so no one answered both: they
+        cannot be compared within the same people.
+      </div>
+
+      <div id="gap-categories"></div>
+      <div id="gap-body"></div>
     </section>
-  </div>
+
+    <!-- ------------------------------------------------------ regression -->
+    <section class="panel" role="tabpanel" id="panel-model" aria-labelledby="tab-model" hidden>
+      <h2>Regression</h2>
+      <p class="lede">
+        A crosstab shows one difference at a time. Rural residents are less
+        supportive of a local project, and rural areas also lean Republican, so
+        a rural difference in a crosstab may be a partisan difference wearing
+        rural clothing. A regression estimates what each thing contributes
+        while the others are held constant, which is what separates the two.
+      </p>
+
+      <div class="read-this">
+        <b>The two words you need.</b> The <b>dependent variable</b> is the
+        thing you are trying to explain — the answer you think depends on
+        something else. The <b>independent variables</b> are the things you
+        think might explain it: age, party, education, where someone lives.<br><br>
+        The model reports what each independent variable contributes with the
+        others held still, so "rural" no longer includes the part that was
+        really about party.
+      </div>
+
+      <div class="card">
+        <h3>Dependent variable &mdash; what you are explaining</h3>
+        <div class="controls">
+          <div class="field">
+            <label for="model-outcome">Question to explain</label>
+            <div class="picker"><input type="text" class="picker-search" id="model-outcome-find" placeholder="type to filter, e.g. solar…" autocomplete="off"><select id="model-outcome" size="1"></select><div class="picker-count" id="model-outcome-count"></div></div>
+          </div>
+          <fieldset class="radios">
+            <legend>Model</legend>
+            <label><input type="radio" name="model-kind" value="linear" checked> linear probability</label>
+            <label><input type="radio" name="model-kind" value="logistic"> logistic</label>
+          </fieldset>
+        </div>
+        <div id="model-outcome-roles"></div>
+      </div>
+
+      <div class="card">
+        <h3>Independent variables &mdash; what might explain it</h3>
+        <p class="role-legend">
+          These are the things held against each other. Remove one with its
+          &times;, add a suggestion, or search for anything else. Each one is
+          measured against a <i>reference</i> category, so a result reads as
+          "compared with 18&ndash;29 year olds". Anyone missing an answer on
+          any of these drops out of the model, so adding more shrinks the
+          sample.
+        </p>
+        <div class="predictor-grid" id="model-predictors"></div>
+        <div id="model-summary" class="base-line"></div>
+        <button id="model-fit" style="margin-top:12px">Fit model</button>
+      </div>
+
+      <div id="model-body"></div>
+    </section>
+  </main>
 </div>
 
-<script src="app.js"></script>
+<footer class="page-footer">
+  <p>
+    Survey Workbench &mdash; a teaching and analysis tool for undergraduate
+    research on public opinion. Licensed
+    <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY&#8209;SA&nbsp;4.0</a>.
+    Variance estimates use Kish's effective sample size and do not account for
+    clustering or stratification in a sample design; see
+    <code>docs/METHODS.md</code>.
+  </p>
+</footer>
+
+<script src="js/stats.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/sav.js"></script>
+<script src="js/regression.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
