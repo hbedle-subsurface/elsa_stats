@@ -839,6 +839,14 @@
   /* The wording that produced the numbers, shown next to them. A percentage
    * cannot be read without it: "45% said not too much" means nothing until
    * you know the question was about common ground between the parties. */
+  /* The source line that goes on the bottom of every figure, so a saved
+   * chart still says what survey it came from. */
+  function sourceNote() {
+    return (state.filename || 'survey data') +
+      (state.weightVar ? ' \u00b7 weighted' : ' \u00b7 UNWEIGHTED') +
+      ' \u00b7 n = ' + fmt(state.rows.length);
+  }
+
   function questionBlock(name, cats) {
     var q = varQuestion(name);
     var html = '<div class="question-block">';
@@ -933,7 +941,13 @@
     var items = cats.map(function (c) {
       return { label: showValue(name, c.value), p: c.pW, moe: c.moe, n: c.n };
     });
-    var svg = Charts.barsWithCI($('item-chart'), items, { labelWidth: 190 });
+    var svg = Charts.barsWithCI($('item-chart'), items, {
+      labelWidth: 200,
+      title: varLabel(name),
+      subtitle: varQuestion(name) || name,
+      note: sourceNote(),
+      axisLabel: 'percent of the ' + fmt(f.totalN) + ' people who answered'
+    });
     $('item-dl').addEventListener('click', function () {
       Charts.downloadSVG(svg, name + '.svg');
     });
@@ -1006,10 +1020,24 @@
       sets.forEach(function (g, i) {
         var o = document.createElement('option');
         o.value = String(i);
-        var t = g.title.length > 72 ? g.title.slice(0, 69) + '\u2026' : g.title;
-        o.textContent = t + '  (' + g.items.length + ' questions)';
+        var t = g.title.length > 88 ? g.title.slice(0, 85) + '\u2026' : g.title;
+        o.textContent = '(' + g.items.length + ') ' + t;
         sel.appendChild(o);
       });
+
+      // open on a list with a clear favor/oppose style answer if there is one,
+      // since those make the point of the screen obvious at a glance
+      var best = -1;
+      sets.forEach(function (g, i) {
+        if (best >= 0) return;
+        var p = g.items[0];
+        var scored = p.values.filter(function (v) {
+          var sc = CSV.scaleScore(labelOf(p.name, v.value));
+          return sc !== null && sc !== 100;
+        });
+        if (scored.length >= 2 && g.items.length >= 4) best = i;
+      });
+      if (best >= 0) sel.value = String(best);
       fillSelect($('battery-group'), analysisVars().filter(function (p) {
         return p.distinct >= 2 && p.distinct <= 6;
       }), true, '\u2014 everyone together \u2014');
@@ -1019,14 +1047,26 @@
       applyPickerFilter('battery-group');
     }
 
-    renderBatteryRoles();
+    renderSetItems();
     renderBattery();
+    renderBatteryRoles();
   }
 
   $('battery-set').addEventListener('change', function () {
-    renderBatteryRoles();
+    renderSetItems();
     renderBattery();
+    renderBatteryRoles();
   });
+
+  /* Naming the questions in the list, so it is obvious what is about to be
+   * compared before anything is drawn. */
+  function renderSetItems() {
+    var g = currentBattery();
+    var box = $('battery-set-items');
+    if (!g || !box) return;
+    box.innerHTML = g.items.length + ' questions: ' +
+      g.items.map(function (p) { return escapeHTML(varLabel(p.name)); }).join(' \u00b7 ');
+  }
   $('battery-group').addEventListener('change', renderBattery);
 
   function currentBattery() {
@@ -1046,11 +1086,14 @@
     ensureRoles(lead.name);
 
     var counted = 0, inBase = 0, left = 0;
-    var html = '<div class="card"><h3>Which answer to count</h3>' +
+    var html = '<details class="tool-details"><summary>Count a different answer, or ' +
+      'change what goes in the total</summary>' +
+      '<div class="card" style="margin-top:10px"><h3>Which answer to count</h3>' +
       '<p class="question-text" style="margin:0 0 12px">' +
       escapeHTML(g.title) + '</p>' +
-      '<p class="role-legend">All ' + g.items.length + ' questions in this set share these ' +
-      'answers, so this choice applies to every one of them.</p><div class="cat-editor">';
+      '<p class="role-legend">All ' + g.items.length + ' questions in this list share the same ' +
+      'answers, so this choice applies to every one of them. The chart above shows whichever ' +
+      'answer is marked to count.</p><div class="cat-editor">';
 
     lead.values.forEach(function (v) {
       var role = state.roles[lead.name][v.value] || 'no';
@@ -1086,8 +1129,19 @@
     var yes = yesList(lead.name), drop = dropList(lead.name);
 
     if (!yes.length) {
-      body.innerHTML = '<div class="notice"><p>Choose the answer you want to count.</p></div>';
-      return;
+      // Rather than showing an empty screen and a form, start on the first
+      // substantive answer so the chart is there to react to.
+      var firstReal = lead.values.filter(function (v) {
+        return state.detectedRefusals.indexOf(String(v.value)) === -1;
+      })[0];
+      if (firstReal) {
+        state.roles[lead.name][firstReal.value] = 'yes';
+        yes = yesList(lead.name);
+      }
+      if (!yes.length) {
+        body.innerHTML = '<div class="notice"><p>Choose the answer you want to count.</p></div>';
+        return;
+      }
     }
     if (yes.length + drop.length >= lead.values.length) {
       body.innerHTML = '<div class="notice"><p>Every other answer is set to be left out, ' +
@@ -1134,7 +1188,13 @@
     var top = rows[0], bottom = rows[rows.length - 1];
 
     var html = '<div class="card"><h3>' + escapeHTML(g.title) + '</h3>' +
-      '<p class="headline">Ranked by how many chose \u201C' + escapeHTML(tracked) + '\u201D. ' +
+      '<p class="set-items">Each bar is one of the ' + g.items.length +
+      ' things this question was asked about. The bar is the share of people ' +
+      'who answered <b>\u201C' + escapeHTML(tracked) + '\u201D</b> about that one.</p>' +
+      '<p class="headline">' +
+      (groupLevels.length
+        ? 'Ranked by ' + escapeHTML(rows[0].series[0].name) + '. '
+        : '') +
       '<b>' + escapeHTML(top.label) + '</b> comes top at ' + Stats.pct(top.series[0].p, 0) +
       '; <b>' + escapeHTML(bottom.label) + '</b> is last at ' +
       Stats.pct(bottom.series[0].p, 0) + '.</p>' +
@@ -1152,6 +1212,10 @@
 
     var svg = Charts.batteryPlot($('battery-chart'), rows, {
       labelWidth: 240,
+      title: g.title,
+      subtitle: 'each bar is the share answering \u201C' + tracked + '\u201D' +
+        (groupLevels.length ? ', split by ' + varLabel(gv) : ''),
+      note: sourceNote(),
       axisLabel: 'percent choosing \u201C' + tracked + '\u201D'
     });
     $('battery-dl').addEventListener('click', function () {
@@ -1463,6 +1527,9 @@
 
     var svg = Charts.profilePlot($('profile-chart'), panels, overall.p, {
       labelWidth: 176,
+      title: varLabel(name) + ' \u2014 share answering \u201C' + tracked + '\u201D',
+      subtitle: varQuestion(name) || name,
+      note: sourceNote(),
       axisLabel: 'share of each group who chose \u201C' + tracked + '\u201D'
     });
     $('profile-dl').addEventListener('click', function () {
@@ -1581,8 +1648,8 @@
     var html = '<div class="card"><h3>' + escapeHTML(varLabel(cv)) + ' by ' +
       escapeHTML(varLabel(rv)) + '</h3>' + questionBlock(cv, null) +
       (merged ? '<p class="role-legend">Some categories have been combined for this table.</p>' : '');
-    html += '<table class="data"><caption>Weighted row percentages. Each row sums to 100%.</caption><thead><tr><th>' +
-      escapeHTML(rv) + '</th>';
+    html += '<table class="data"><caption>Weighted row percentages. Each row sums to 100%.' +
+      '</caption><thead><tr><th>' + escapeHTML(varLabel(rv)) + '</th>';
     ct.colKeys.forEach(function (k) {
       html += '<th>' + escapeHTML(merged ? k : showValue(cv, k)) + '</th>';
     });
@@ -1645,29 +1712,57 @@
     // small multiples: one stacked row per group
     var series = ct.rowKeys.map(function (rk, i) {
       return {
-        label: (merged ? rk : showValue(rv, rk)) + '  (n=' + ct.rowTotalsN[i] + ')',
+        label: (merged ? rk : labelOf(rv, rk)) + '  (n=' + fmt(ct.rowTotalsN[i]) + ')',
         segments: ct.colKeys.map(function (ck, j) {
-          return { name: merged ? ck : showValue(cv, ck), p: ct.rowPct[i][j].p };
+          return { name: merged ? ck : labelOf(cv, ck), p: ct.rowPct[i][j].p };
         })
       };
     });
-    // Where the supporting categories end. For an ordered scale this comes
-    // from the scale itself; otherwise the categories are nominal and the
-    // bars are read as a plain composition with no zero line.
-    var colProfile = state.profileByName[cv];
+    // Where the supporting answers end.
+    //
+    // This has to be worked out from the answer TEXT, not the stored code. A
+    // Pew file holds 1 and 2, which say nothing about direction; it is the
+    // labels "Favor" and "Oppose" that do. Reading the codes made every
+    // answer land on the same side and come out as shades of one colour.
+    var colScores = ct.colKeys.map(function (k) {
+      return CSV.scaleScore(merged ? k : labelOf(cv, k));
+    });
+    var substantive = colScores.filter(function (sc) { return sc !== 100; });
+    var isScale = substantive.length > 1 &&
+      substantive.every(function (sc) { return sc !== null; });
+
     var split = ct.colKeys.length - 1;
     var hasMiddle = false;
-    if (colProfile && colProfile.isScale) {
+    if (isScale) {
       split = -1;
-      ct.colKeys.forEach(function (k, ix) {
-        var sc = CSV.scaleScore(k);
-        if (sc !== null && sc < 0) split = ix;
-      });
-      hasMiddle = colProfile.hasMiddle;
+      colScores.forEach(function (sc, ix) { if (sc !== null && sc < 0) split = ix; });
+      hasMiddle = colScores.some(function (sc) { return sc === 0; });
       if (split < 0) split = 0;
     }
-    var svg = Charts.divergingBars($('cross-chart'), series, ct.colKeys, split,
-      { labelWidth: 190, hasMiddle: hasMiddle, showNet: colProfile && colProfile.isScale });
+    // The legend has to carry the answer text, not the raw codes: a key
+    // reading "1 2 3 4 99" tells a reader nothing about which colour is
+    // which answer.
+    var segmentNames = ct.colKeys.map(function (k) {
+      return merged ? k : labelOf(cv, k);
+    });
+
+    var svg = Charts.divergingBars($('cross-chart'), series, segmentNames, split, {
+      labelWidth: 200,
+      hasMiddle: hasMiddle,
+      qualitative: !isScale,
+      showNet: isScale,
+      netLabel: split >= 0 && isScale
+        ? ct.colKeys.slice(0, split + 1).map(function (k) {
+            return merged ? k : labelOf(cv, k);
+          }).join(' + ')
+        : 'combined',
+      title: varLabel(cv) + ', broken out by ' + varLabel(rv),
+      subtitle: varQuestion(cv) || cv,
+      note: sourceNote(),
+      rowLabel: varLabel(rv),
+      colorLabel: 'colours are answers to \u201C' + varLabel(cv) + '\u201D:',
+      axisLabel: 'percent of each row \u2014 every row adds to 100%'
+    });
     $('cross-dl').addEventListener('click', function () {
       Charts.downloadSVG(svg, cv + '_by_' + rv + '.svg');
     });
@@ -1939,7 +2034,13 @@
     body.innerHTML = html;
 
     // --- 2x2
-    var sq = Charts.pairedSquare($('gap-square'), res);
+    var sq = Charts.pairedSquare($('gap-square'), res, {
+      title: 'Supporting it in general against supporting it locally',
+      subtitle: 'columns: ' + varLabel(a),
+      note: 'rows: ' + varLabel(b) + ' \u00b7 ' + sourceNote(),
+      labelA: varLabel(a),
+      labelB: varLabel(b)
+    });
     var c = res.cellsW, cn = res.cellsN, tot = res.totalW;
     $('gap-table').innerHTML =
       '<table class="data"><caption>Weighted share of respondents in each combination of answers.</caption>' +
@@ -1985,9 +2086,13 @@
         };
       });
       var gsvg = Charts.gapPlot($('gap-chart'), plotData, {
-        labelWidth: 170,
-        labelA: 'in general',
-        labelB: 'locally'
+        labelWidth: 176,
+        title: 'General support against local support, by ' + varLabel(gv),
+        subtitle: varLabel(a) + '   vs.   ' + varLabel(b),
+        note: sourceNote(),
+        labelA: varLabel(a),
+        labelB: varLabel(b),
+        axisLabel: 'percent supporting'
       });
 
       var gt = '<table class="data"><caption>Each row is a separate paired comparison within that ' +
@@ -2355,6 +2460,13 @@
     return out;
   }
 
+  /* The answer being modelled, in words, for figure captions. */
+  function tracked0(name) {
+    var y = yesList(name);
+    return y.length ? y.map(function (v) { return labelOf(name, v); }).join(' or ')
+      : 'the chosen answer';
+  }
+
   function renderModelResults(m, outcomeName, preds, kind, checks) {
     var body = $('model-body');
     var isLinear = (kind === 'linear');
@@ -2552,8 +2664,15 @@
     });
 
     var coefSvg = Charts.coefficientPlot($('coef-chart'), plotTerms, {
-      labelWidth: 215,
+      labelWidth: 250,
       asPercentagePoints: true,
+      title: 'What predicts: ' + varLabel(outcomeName),
+      subtitle: (isLinear ? 'Linear probability model' : 'Weighted logistic regression') +
+        ' \u00b7 n = ' + fmt(m.n) + ' \u00b7 ' +
+        (isLinear
+          ? 'R\u00B2 = ' + (isFinite(m.r2) ? m.r2.toFixed(3) : '\u2014')
+          : 'pseudo-R\u00B2 = ' + (isFinite(m.pseudoR2) ? m.pseudoR2.toFixed(3) : '\u2014')),
+      note: 'outcome: ' + tracked0(outcomeName) + ' \u00b7 ' + sourceNote(),
       axisLabel: (kind === 'logistic'
         ? 'average marginal effect on the probability of the outcome (percentage points)'
         : 'change in the probability of the outcome (percentage points)')
@@ -2595,9 +2714,13 @@
         });
 
         var adjSvg = Charts.adjustedPlot($('adj-chart'), points, {
-          labelWidth: 175,
+          labelWidth: 180,
+          title: 'Predicted ' + tracked0(outcomeName) + ' by ' + varLabel(varName),
+          subtitle: 'from the model, with every other variable held at its observed value',
+          note: 'outcome: ' + varLabel(outcomeName) + ' \u00b7 ' + sourceNote(),
           labelModel: 'model estimate, others held constant',
-          labelObserved: 'plain weighted percentage'
+          labelObserved: 'plain weighted percentage',
+          axisLabel: 'predicted share giving this answer'
         });
         $('adj-dl').onclick = function () {
           Charts.downloadSVG(adjSvg, 'adjusted_' + varName + '.svg');

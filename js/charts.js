@@ -25,6 +25,43 @@
    * which is why the chart text came out much larger than the text around it
    * and why a tall chart ran off the screen. Capping the width at the design
    * size keeps a 12px label 12px. */
+  /* Every figure has to stand on its own once it is saved and pasted into a
+   * poster, where none of the surrounding page goes with it. That means the
+   * question, the variable it came from, and what is being counted all belong
+   * inside the drawing. */
+  function headerHeight(opts) {
+    if (!opts || !opts.title) return 0;
+    var h = 18;
+    if (opts.subtitle) h += 14;
+    if (opts.note) h += 13;
+    return h + 8;
+  }
+
+  function drawHeader(svg, opts, width) {
+    if (!opts || !opts.title) return;
+    var y = 13;
+    svg.appendChild(el('text', {
+      x: 0, y: y, 'font-size': 12.5, fill: 'var(--ink)', 'font-weight': 600
+    }, clip(opts.title, Math.floor(width / 6.6))));
+    if (opts.subtitle) {
+      y += 14;
+      svg.appendChild(el('text', {
+        x: 0, y: y, 'font-size': 10.5, fill: 'var(--slate)'
+      }, clip(opts.subtitle, Math.floor(width / 5.4))));
+    }
+    if (opts.note) {
+      y += 13;
+      svg.appendChild(el('text', {
+        x: 0, y: y, 'font-size': 10, fill: 'var(--slate)'
+      }, clip(opts.note, Math.floor(width / 5.2))));
+    }
+  }
+
+  function clip(text, max) {
+    text = String(text);
+    return text.length > max ? text.slice(0, max - 1).replace(/\s+\S*$/, '') + '\u2026' : text;
+  }
+
   function svgRoot(w, h) {
     var s = el('svg', {
       viewBox: '0 0 ' + w + ' ' + h,
@@ -87,6 +124,18 @@
     return [128, 128, 128];
   }
 
+  /* Answers with no order to them get a set of distinct colours rather than
+   * a ramp, because a ramp implies a direction that is not there. Kept to
+   * the blue and green family, separated by lightness so they survive colour
+   * vision deficiency. */
+  var QUALITATIVE = ['#0B4F6C', '#21937A', '#4FA3C4', '#8ED6BE', '#5C6670', '#B9D9E8', '#C7D6CE'];
+
+  function qualitativeColors(n) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(QUALITATIVE[i % QUALITATIVE.length]);
+    return out;
+  }
+
   function mix(a, b, t) {
     var x = parseColor(a), y = parseColor(b);
     var r = Math.round(x[0] + (y[0] - x[0]) * t),
@@ -136,15 +185,29 @@
     opts = opts || {};
     container.innerHTML = '';
     var labelW = opts.labelWidth || 150;
-    var rowH = 30, gap = 10, padTop = 8, padBottom = 46, padRight = 48;
-    var W = 760, plotX0 = labelW, plotX1 = W - padRight;
+    var rowH = 28, gap = 9;
+    var padTop = 8 + headerHeight(opts) + (opts.rowLabel ? 13 : 0);
+    var padBottom = 62, padRight = 52;
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + series.length * (rowH + gap) + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
 
-    var nSup = splitAfter + 1;
-    var hasMiddle = !!opts.hasMiddle;
-    var nOpp = segmentNames.length - nSup - (hasMiddle ? 1 : 0);
-    var colors = supportColors(nSup, nOpp, hasMiddle);
+    if (opts.rowLabel) {
+      svg.appendChild(el('text', {
+        x: 0, y: headerHeight(opts) + 4, 'font-size': 10, fill: 'var(--slate)'
+      }, 'each row is one group of: ' + opts.rowLabel));
+    }
+
+    var colors;
+    if (opts.qualitative) {
+      colors = qualitativeColors(segmentNames.length);
+    } else {
+      var nSup = splitAfter + 1;
+      var hasMiddle = !!opts.hasMiddle;
+      var nOpp = segmentNames.length - nSup - (hasMiddle ? 1 : 0);
+      colors = supportColors(nSup, nOpp, hasMiddle);
+    }
 
     gridlines(svg, plotX0, plotX1, padTop, padTop + series.length * (rowH + gap) - gap);
 
@@ -193,19 +256,30 @@
 
     if (opts.showNet) {
       svg.appendChild(el('text', {
-        x: plotX1 + 8, y: axisY + 16, 'text-anchor': 'start',
+        x: plotX1 + 8, y: padTop - 6, 'text-anchor': 'start',
         'font-size': 9, fill: 'var(--slate)'
-      }, 'support'));
+      }, opts.netLabel || 'combined'));
     }
 
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: axisY + 38, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'percent of each row'));
+
     container.appendChild(svg);
-    container.appendChild(legend(segmentNames, colors));
+    container.appendChild(legend(segmentNames, colors, opts.colorLabel));
     return svg;
   }
 
-  function legend(names, colors) {
+  function legend(names, colors, caption) {
     var wrap = document.createElement('div');
     wrap.className = 'legend';
+    if (caption) {
+      var cap = document.createElement('span');
+      cap.className = 'legend-caption';
+      cap.textContent = caption;
+      wrap.appendChild(cap);
+    }
     names.forEach(function (n, i) {
       var item = document.createElement('span');
       item.className = 'legend-item';
@@ -229,10 +303,12 @@
     opts = opts || {};
     container.innerHTML = '';
     var labelW = opts.labelWidth || 150;
-    var rowH = 26, padTop = 26, padBottom = 46, padRight = 128;
-    var W = 760, plotX0 = labelW, plotX1 = W - padRight;
+    var rowH = 26, padBottom = 52, padRight = 128;
+    var padTop = 26 + headerHeight(opts);
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + groups.length * rowH + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
 
     var P = palette();
     var cA = P.seriesA, cB = P.seriesB;
@@ -242,15 +318,15 @@
     // Colour key, placed above the plot. The dots are not fixed to the
     // left or right of each other, so the key names them by colour rather
     // than by position.
-    var keyX = plotX0;
+    var keyX = plotX0, keyY = padTop - 17;
     [[cA, opts.labelA || 'in general'], [cB, opts.labelB || 'locally']].forEach(function (k) {
-      svg.appendChild(el('circle', { cx: keyX + 4, cy: 9, r: 4, fill: k[0] }));
-      var t = el('text', { x: keyX + 13, y: 12.5, 'font-size': 10, fill: 'var(--slate)' }, k[1]);
+      svg.appendChild(el('circle', { cx: keyX + 4, cy: keyY - 3, r: 4, fill: k[0] }));
+      var t = el('text', { x: keyX + 13, y: keyY, 'font-size': 10, fill: 'var(--slate)' }, k[1]);
       svg.appendChild(t);
       keyX += 20 + k[1].length * 5.4;
     });
     svg.appendChild(el('text', {
-      x: plotX1 + 8, y: 12.5, 'font-size': 10, fill: 'var(--slate)'
+      x: plotX1 + 8, y: keyY, 'font-size': 10, fill: 'var(--slate)'
     }, 'gap'));
 
     function X(p) { return plotX0 + (plotX1 - plotX0) * p; }
@@ -302,7 +378,12 @@
       }
     });
 
-    percentAxis(svg, plotX0, plotX1, padTop + groups.length * rowH - 6);
+    var gAxY = padTop + groups.length * rowH - 6;
+    percentAxis(svg, plotX0, plotX1, gAxY);
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: gAxY + 38, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'percent supporting'));
     container.appendChild(svg);
     return svg;
   }
@@ -314,10 +395,12 @@
     opts = opts || {};
     container.innerHTML = '';
     var labelW = opts.labelWidth || 150;
-    var rowH = 22, gap = 6, padTop = 8, padBottom = 46, padRight = 96;
-    var W = 760, plotX0 = labelW, plotX1 = W - padRight;
+    var rowH = 22, gap = 6, padBottom = 52, padRight = 96;
+    var padTop = 8 + headerHeight(opts);
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + items.length * (rowH + gap) + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
     var color = opts.color || palette().support[0];
 
     gridlines(svg, plotX0, plotX1, padTop, padTop + items.length * (rowH + gap) - gap);
@@ -352,7 +435,12 @@
       }, txt));
     });
 
-    percentAxis(svg, plotX0, plotX1, padTop + items.length * (rowH + gap) - gap);
+    var axY = padTop + items.length * (rowH + gap) - gap;
+    percentAxis(svg, plotX0, plotX1, axY);
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: axY + 38, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'percent of everyone who answered'));
     container.appendChild(svg);
     return svg;
   }
@@ -364,8 +452,16 @@
   function pairedSquare(container, gapResult, opts) {
     opts = opts || {};
     container.innerHTML = '';
-    var W = 460, H = 350;
-    var svg = svgRoot(W, H);
+    var yOff = headerHeight(opts);
+    var W = 460, H = 350 + yOff;
+    var outer = svgRoot(W, H);
+    drawHeader(outer, opts, W);
+
+    // everything below the header is drawn in its own layer, shifted down,
+    // so adding a title never means re-positioning the figure itself
+    var svg = el('g', { transform: 'translate(0,' + yOff + ')' });
+    outer.appendChild(svg);
+
     var c = gapResult.cellsW, tot = gapResult.totalW;
     var pad = 88, size = 196;
 
@@ -457,7 +553,7 @@
       x: cx, y: baseY + 39, 'text-anchor': 'middle', 'font-size': 10, fill: 'var(--slate)'
     }, 'favor it in general, not locally'));
 
-    container.appendChild(svg);
+    container.appendChild(outer);
 
     var key = document.createElement('div');
     key.className = 'legend';
@@ -467,7 +563,7 @@
     }).join('');
     container.appendChild(key);
 
-    return svg;
+    return outer;
   }
 
   // ------------------------------------------------------ coefficient plot
@@ -503,10 +599,12 @@
     }
 
     var labelW = opts.labelWidth || 250;
-    var rowH = 22, padTop = 18, padBottom = 56, padRight = 84;
+    var rowH = 22, padBottom = 56, padRight = 84;
+    var padTop = 18 + headerHeight(opts);
     var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + terms.length * rowH + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
 
     var span = 0;
     terms.forEach(function (t) {
@@ -617,27 +715,29 @@
     container.innerHTML = '';
     var P = palette();
     var labelW = opts.labelWidth || 170;
-    var rowH = 30, padTop = 24, padBottom = 50, padRight = 110;
-    var W = 760, plotX0 = labelW, plotX1 = W - padRight;
+    var rowH = 30, padBottom = 54, padRight = 110;
+    var padTop = 24 + headerHeight(opts);
+    var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + points.length * rowH + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
     var showObserved = points.some(function (p) { return p.observed !== undefined && p.observed !== null; });
 
     gridlines(svg, plotX0, plotX1, padTop - 10, padTop + points.length * rowH - 8);
 
     if (showObserved) {
-      var keyX = plotX0;
+      var keyX = plotX0, aKeyY = padTop - 16;
       [[P.support[0], opts.labelModel || 'model estimate', 'dot'],
        ['var(--slate)', opts.labelObserved || 'observed in the data', 'tick']].forEach(function (k) {
         if (k[2] === 'dot') {
-          svg.appendChild(el('circle', { cx: keyX + 4, cy: 8, r: 4.5, fill: k[0] }));
+          svg.appendChild(el('circle', { cx: keyX + 4, cy: aKeyY - 3, r: 4.5, fill: k[0] }));
         } else {
           svg.appendChild(el('line', {
-            x1: keyX + 4, x2: keyX + 4, y1: 3, y2: 13, stroke: k[0], 'stroke-width': 1.5
+            x1: keyX + 4, x2: keyX + 4, y1: aKeyY - 8, y2: aKeyY + 2, stroke: k[0], 'stroke-width': 1.5
           }));
         }
         svg.appendChild(el('text', {
-          x: keyX + 13, y: 11.5, 'font-size': 10, fill: 'var(--slate)'
+          x: keyX + 13, y: aKeyY, 'font-size': 10, fill: 'var(--slate)'
         }, k[1]));
         keyX += 24 + k[1].length * 5.3;
       });
@@ -675,7 +775,12 @@
       }, (100 * pt.p).toFixed(1) + '%'));
     });
 
-    percentAxis(svg, plotX0, plotX1, padTop + points.length * rowH - 8);
+    var aAxY = padTop + points.length * rowH - 8;
+    percentAxis(svg, plotX0, plotX1, aAxY);
+    svg.appendChild(el('text', {
+      x: (plotX0 + plotX1) / 2, y: aAxY + 38, 'text-anchor': 'middle',
+      'font-size': 10.5, fill: 'var(--slate)'
+    }, opts.axisLabel || 'predicted percent'));
     container.appendChild(svg);
     return svg;
   }
@@ -702,7 +807,7 @@
 
     var labelW = opts.labelWidth || 168;
     var rowH = 21, panelGap = 13, titleH = 18;
-    var padTop = 28, padBottom = 42, padRight = 112;
+    var padTop = 28 + headerHeight(opts), padBottom = 42, padRight = 112;
     var W = 720, plotX0 = labelW, plotX1 = W - padRight;
 
     var H = padTop;
@@ -710,6 +815,7 @@
     H += padBottom;
 
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
     function X(p) { return plotX0 + (plotX1 - plotX0) * p; }
 
     // whole-sample reference line, drawn behind everything
@@ -719,7 +825,7 @@
       stroke: 'var(--ink)', 'stroke-width': 1.25, 'stroke-dasharray': '5 3', opacity: 0.55
     }));
     svg.appendChild(el('text', {
-      x: refX, y: 13, 'text-anchor': 'middle', 'font-size': 10.5,
+      x: refX, y: padTop - 17, 'text-anchor': 'middle', 'font-size': 10.5,
       fill: 'var(--ink)', 'font-weight': 600
     }, 'everyone: ' + (100 * overall).toFixed(0) + '%'));
 
@@ -837,10 +943,11 @@
     var labelW = opts.labelWidth || 230;
     var rowH = multi ? 15 * nSeries + 16 : 26;
     var gap = multi ? 12 : 8;
-    var padTop = multi ? 26 : 10, padBottom = 48, padRight = 104;
+    var padTop = (multi ? 26 : 10) + headerHeight(opts), padBottom = 48, padRight = 104;
     var W = 720, plotX0 = labelW, plotX1 = W - padRight;
     var H = padTop + items.length * (rowH + gap) + padBottom;
     var svg = svgRoot(W, H);
+    drawHeader(svg, opts, W);
 
     // a blue-to-green ramp keeps series apart by lightness as well as hue
     var seriesColors = [];
@@ -853,11 +960,11 @@
     function X(p) { return plotX0 + (plotX1 - plotX0) * p; }
 
     if (multi) {
-      var keyX = plotX0;
+      var keyX = plotX0, bkY = padTop - 15;
       items[0].series.forEach(function (sr, i) {
-        svg.appendChild(el('circle', { cx: keyX + 4, cy: 9, r: 4.5, fill: seriesColors[i] }));
+        svg.appendChild(el('circle', { cx: keyX + 4, cy: bkY - 3, r: 4.5, fill: seriesColors[i] }));
         svg.appendChild(el('text', {
-          x: keyX + 13, y: 12.5, 'font-size': 10.5, fill: 'var(--slate)'
+          x: keyX + 13, y: bkY, 'font-size': 10.5, fill: 'var(--slate)'
         }, sr.name));
         keyX += 26 + String(sr.name).length * 5.6;
       });

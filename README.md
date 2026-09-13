@@ -122,22 +122,30 @@ you get only the ones about both.
 
 Click any result and it opens on whatever screen you are on.
 
-### Compare questions
+### Compare a list
 
-Surveys usually ask the same thing about a list of items: six energy sources,
-sixteen national problems, four things a solar farm might do. Those belong on
-one chart together, ranked, and this screen finds those sets automatically and
-draws them.
+Surveys rarely ask about one thing. They ask the same question about a whole
+list, and the interesting answer is usually the ranking.
 
-Choose which answer to count and every question in the set lands on the same
-scale, so you can see which one people pick most. Add a group and each row
-gets a dot per group, which is where the interesting things usually show up.
-Asking the Wave 148 energy list by party, for instance, shows Republicans and
-Democrats in almost exactly opposite orders — Republicans rank offshore
-drilling top and wind last, Democrats the reverse.
+Wave 148 asked *"Do you favor or oppose expanding each of the following sources
+of energy in our country?"* and then named six: solar, wind, nuclear, offshore
+drilling, fracking, coal. Asked one at a time those are six separate numbers.
+On one chart they answer a better question — which sources do Americans
+actually want more of, and in what order? (Solar first at 78%, coal last at
+39%.)
 
-If two dots sit on top of each other the groups agree. If their error lines
-overlap, they are not far enough apart to call a difference.
+This screen finds those lists on its own and draws one as soon as you pick it.
+The questions in the list are named under the menu so you can see what you are
+about to compare.
+
+Add a group and each row gets a dot per group instead. The Wave 148 energy list
+split by party is worth looking at: Republicans and Democrats rank the six
+sources in almost opposite orders, Republicans putting offshore drilling top
+and wind last. Where two dots sit on top of each other the groups agree; where
+their error lines overlap, they are not far enough apart to call a difference.
+
+If you want to count a different answer — people who *oppose*, say, rather than
+favor — that control is below the chart.
 
 ### Who answers how
 
@@ -176,6 +184,13 @@ noise. The chart is trying to stop you.
 The same comparison as a table of numbers, for when you want exact figures to
 quote. Each row is a group and adds across to 100%. The screen explains the
 two statistics underneath it.
+
+The chart underneath is labelled with both questions: a title saying which
+question is broken out by which, and a legend naming every answer the colours
+stand for. Blues run through the agreeing answers and greens through the
+disagreeing ones when the answers have an order; when they do not, each answer
+gets its own distinct colour instead, because a graded ramp would imply an
+order that is not there.
 
 There is a **Combine categories** panel here. Give two answers the same name
 and they merge into one column: four scale points become favor against oppose,
@@ -226,6 +241,19 @@ are less supportive too. So is what you are seeing about *rural*, or about
 *Republican* wearing a rural disguise? A table cannot separate those. This can.
 
 ---
+
+## Saving figures
+
+Every chart has a **Save figure as SVG** button. The saved file carries its own
+title, the wording of the question it came from, which answer is being counted,
+and a line naming the data file and whether it was weighted.
+
+That is deliberate. A chart pulled into a poster or a slide leaves the
+surrounding page behind, and a reader should not have to ask what they are
+looking at. If a figure cannot be understood on its own, it is not finished.
+
+SVG opens in PowerPoint, Word, Illustrator and Inkscape, and stays sharp at any
+size.
 
 ## The one idea you actually have to understand
 
